@@ -1,0 +1,17 @@
+#ifndef PARSE_DUMPED_VPR_STRUCTS_H
+#define PARSE_DUMPED_VPR_STRUCTS_H
+
+#include <string>
+
+/**** Function Declarations ****/
+/* VPR can write out its post-build_rr_graph structures to a file.
+   Here we parse this file */
+void parse_dumped_VPR_structs( std::string vpr_structs_file, Arch_Structs *arch_structs, Routing_Structs *routing_structs );
+
+/* If Wotan is being initialized based on a dumped VPR structs file then backwards edges/switches need to be determined 
+   for each node as a post-processing step. Do this for the pins specified by 'node_type'. if node_type == UNDEFINED,
+   then do this for all nodes  */
+void initialize_reverse_node_edges_and_switches( Routing_Structs *routing_structs, int node_type );
+
+
+#endif
