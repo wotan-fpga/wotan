@@ -790,8 +790,8 @@ class Wotan_Tester:
 
 		#would like to increase pin demand until ONE of the architectures hits the below probability.
 		#at that point the arch with the lower probability will be considered more routable
-		target_prob = 15
-		target_tolerance = 1.0
+		target_prob = 0.3
+		target_tolerance = 0.02
 		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'	#TODO: should make this a function arg?
 
 		#holds a list of results for each arch pair comparison
