@@ -91,7 +91,7 @@ typedef set< Node_Waiting > t_nodes_waiting;
    defines the problem parameters for each thread */
 class Conn_Info{
 public:
-	vector<int> source_node_inds;
+	vector<int> source_node_inds;		//TODO: source_node_inds and tile_coords come in pairs --> consolidate them into one structure; confusing otherwise
 	vector<Coordinate> tile_coords;
 	User_Options *user_opts;
 	Analysis_Settings *analysis_settings;
@@ -387,9 +387,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	alloc_thread_conn_info(thread_conn_info, num_threads);
 	alloc_threads(threads, num_threads);
 
-	int ithread = 0;
 	/* set parameters that will not change for each thread */
-	for (ithread = 0; ithread < num_threads; ithread++){
+	for (int ithread = 0; ithread < num_threads; ithread++){
 		thread_conn_info[ithread].user_opts = user_opts;
 		thread_conn_info[ithread].analysis_settings = analysis_settings;
 		thread_conn_info[ithread].arch_structs = arch_structs;
@@ -400,7 +399,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		thread_conn_info[ithread].topological_mode = topological_mode;
 	}
 
-	ithread = 0;
+	int ithread_source = 0;
+	int ithread_sink = 0;
 	/* for each test tile */
 	vector< Coordinate >::const_iterator it;
 	for (it = analysis_settings->test_tile_coords.begin(); it != analysis_settings->test_tile_coords.end(); it++){
@@ -421,8 +421,6 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 
 		/* for each source of the test tile */
 		for (int iclass = 0; iclass < (int)tile_type->class_inf.size(); iclass++){
-		//for (int iclass = 40; iclass < 41; iclass++){
-		//for (int iclass = 1; iclass < 2; iclass++){
 			Pin_Class *pin_class = &tile_type->class_inf[iclass];
 
 			if (pin_class->get_pin_type() == DRIVER){
@@ -431,11 +429,11 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 
 				int source_node_index = routing_structs->rr_node_index[SOURCE][tile_coord.x][tile_coord.y][iclass];
 
-				thread_conn_info[ithread].source_node_inds.push_back(source_node_index);
-				thread_conn_info[ithread].tile_coords.push_back(tile_coord);
-				ithread++;	
-				if (ithread == num_threads){
-					ithread = 0;
+				thread_conn_info[ithread_source].source_node_inds.push_back(source_node_index);
+				thread_conn_info[ithread_source].tile_coords.push_back(tile_coord);
+				ithread_source++;	
+				if (ithread_source == num_threads){
+					ithread_source = 0;
 				}
 
 			} else if (pin_class->get_pin_type() == RECEIVER){
@@ -452,11 +450,11 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 
 					int source_node_index = routing_structs->rr_node_index[IPIN][tile_coord.x][tile_coord.y][pin_index];
 
-					thread_conn_info[ithread].source_node_inds.push_back(source_node_index);
-					thread_conn_info[ithread].tile_coords.push_back(tile_coord);
-					ithread++;	
-					if (ithread == num_threads){
-						ithread = 0;
+					thread_conn_info[ithread_sink].source_node_inds.push_back(source_node_index);
+					thread_conn_info[ithread_sink].tile_coords.push_back(tile_coord);
+					ithread_sink++;	
+					if (ithread_sink == num_threads){
+						ithread_sink = 0;
 					}
 				}
 
@@ -605,6 +603,7 @@ void* enumerate_paths_from_source( void *ptr ){
 	t_nodes_visited &nodes_visited = (*conn_info->nodes_visited);
 	e_topological_mode topological_mode = conn_info->topological_mode;
 
+
 	/* for each source node index and tile coordinate */
 	int num_source_node_inds = (int)source_node_inds.size();
 	for (int isource = 0; isource < num_source_node_inds; isource++){
@@ -742,8 +741,6 @@ void* enumerate_paths_from_source( void *ptr ){
 				}
 			}
 		}
-
-		//cout << "did " << iterations << " iterations" << endl;
 	}
 
 	return (void*) NULL;
