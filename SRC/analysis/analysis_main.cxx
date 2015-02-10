@@ -125,6 +125,9 @@ public:
 	/* mutex for threads wishing to add to the results */
 	pthread_mutex_t thread_mutex;
 
+	/* maximum possible total weighted probability is ALL connections have a 100% chance of routing (used to normalize analysis) */
+	double max_possible_total_prob;
+
 	/* total weighted probability over all connections */
 	double total_prob;
 
@@ -140,6 +143,7 @@ public:
 
 	/* constructor to initialize constituent variables to 0 */
 	Analysis_Results(){
+		this->max_possible_total_prob = 0;
 		this->total_prob = 0;
 		this->desired_conns = 0;
 		this->num_conns = 0;
@@ -244,6 +248,8 @@ void get_sum_of_source_probabilities(int source_node_ind, t_rr_node &rr_node, t_
 
 /* returns number of sinks corresponding to the specified super-sink node */
 int get_num_sinks(int sink_node_ind, t_rr_node &rr_node, Physical_Type_Descriptor &fill_block_type);
+/* returns number of sources corresponding to the specified super-source node */
+int get_num_sources(int source_node_ind, t_rr_node &rr_node, Physical_Type_Descriptor &fill_block_type);
 
 /* function for a thread to increment the probability metric */
 void increment_probability_metric( float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
@@ -286,6 +292,7 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	vector<int> conns_at_length;
 
+	/* create the lowest probability priority queues (for pessimistic routability analysis of some percentile of worst connections at each length) */
 	f_analysis_results.lowest_probs_pqs.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
 	get_conn_length_stats(user_opts, routing_structs, arch_structs, conns_at_length);
 	for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
@@ -544,9 +551,10 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		cout << "Normalized squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
 	} else {
+		/* print normalized probability results */
 		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
-		cout << "Total prob: " << f_analysis_results.total_prob << endl;
-		cout << "Pessimistic prob: " << worst_probabilities_metric << endl;
+		cout << "Total prob: " << f_analysis_results.total_prob / f_analysis_results.max_possible_total_prob << endl;
+		cout << "Pessimistic prob: " << worst_probabilities_metric / (f_analysis_results.max_possible_total_prob * WORST_ROUTABILITY_PERCENTILE) << endl;
 	}
 }
 
@@ -837,7 +845,8 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 				WTHROW(EX_PATH_ENUM, "Didn't expect logic block to have > 0 widht/height offset");
 			}
 
-			/* it is assumed there is a source for each output pin */		//TODO: how correct is this? what if we have pin equivalence??????
+			/* it is assumed there is a source for each output pin.
+			   note that multiple sources can be contained in a single super-source */
 			int num_output_pins = fill_type->get_num_drivers();
 
 			/* for each legal length */
@@ -951,6 +960,7 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	float one_pin_prob;
 	get_sum_of_source_probabilities(source_node_ind, rr_node, pin_probs, fill_block_type, &sum_of_source_probabilities, &one_pin_prob);
 	int num_sinks = get_num_sinks(sink_node_ind, rr_node, fill_block_type);
+	int num_sources = get_num_sources(source_node_ind, rr_node, fill_block_type);
 
 	int sinks;
 	float probability;
@@ -978,25 +988,27 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	} else if (topological_mode == PROBABILITY){
 		/* estimate probability of connection being routable and increment the probability metric */
-
 		float probability_connection_routable = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 							routing_structs, ss_distances, node_topo_inf, conn_length, 
 							nodes_visited, user_opts);
 
 		/* increment the probability metric */
 		if (probability_connection_routable >= 0){
-			//TODO: this is hacked for now. Later want a better-weighed cost function
-			float scaling_factor = (float)num_sinks * /*sum_of_source_probabilities **/ length_prob / (float)number_conns_at_length;
+			float scaling_factor = (float)num_sinks * (float)num_sources * length_prob / (float)number_conns_at_length;
 			float probability_increment = scaling_factor * probability_connection_routable;
 
 			/* increment probability metric */
-			int num_subsources = 1;
+			int num_subsources = num_sources;
 			int num_subsinks = num_sinks;
 			increment_probability_metric( probability_increment, conn_length, adjusted_source_node_ind, sink_node_ind, num_subsources, num_subsinks );
+
+			/* add this connection's ideal probability to the running total (for normalizing later) */
+			pthread_mutex_lock(&f_analysis_results.thread_mutex);
+			f_analysis_results.max_possible_total_prob += scaling_factor * 1.0;
+			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 		} else {
 			WTHROW(EX_PATH_ENUM, "Got negative connection probability: " << probability_connection_routable);
 		}
-			
 	}
 
 	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);
@@ -1598,13 +1610,29 @@ int get_num_sinks(int sink_node_ind, t_rr_node &rr_node, Physical_Type_Descripto
 	return num_sinks;
 }
 
+/* returns number of sources corresponding to the specified super-source node */
+int get_num_sources(int source_node_ind, t_rr_node &rr_node, Physical_Type_Descriptor &fill_block_type){
+	int num_sources = 0;
+
+	if (rr_node[source_node_ind].get_rr_type() != SOURCE){
+		WTHROW(EX_PATH_ENUM, "Expected node to be a source. Got node of type: " << rr_node[source_node_ind].get_rr_type());
+	}
+
+	int node_ptc = rr_node[source_node_ind].get_ptc_num();
+	Pin_Class &pin_class = fill_block_type.class_inf[node_ptc];
+
+	num_sources = pin_class.get_num_pins();
+
+	return num_sources;
+}
+
 /* function for a thread to increment the probability metric */
 void increment_probability_metric( float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
 				int num_subsources, int num_subsinks ){
 	pthread_mutex_lock(&f_analysis_results.thread_mutex);
 	f_analysis_results.total_prob += probability_increment;
 
-
+	/* account for multiple sources/sinks being present in a supersource/supersink */
 	int div_factor = num_subsources * num_subsinks;
 	float push_value = probability_increment / (float)div_factor;
 	for (int i = 0; i < div_factor; i++){
