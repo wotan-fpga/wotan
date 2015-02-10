@@ -23,35 +23,42 @@
 
 using namespace std;
 
-#define PATH_FLEXIBILITY_FACTOR 1.3	//TODO: verify what happens when < 1. 
-					//      At 1 no equiv len1 is worse than len2. Why? Set max distance to 1 and check 
-					//		because of false choke points
 
-#define CORE_OFFSET 3			//if core analysis is enabled in user options then reachability analysis is only performed
-					//for blocks in the region that is >= 'CORE_OFFSET' blocks away from the perimeter 
+/**** Defines ****/
+/* Used to set the maximum path weight to be considered for path enumeration & probabilitiy analysis. 
+   The maximum pathweight considered for a source-sink pair is (weight from source to sink)*PATH_FLEXIBILITY_FACTOR.
+   Note however that there is an additional constraint on maximum path weight set by analysis_settings->get_max_path_weight
+     - if (weight from source to sink) exceeds this then the connection simply won't be analyzed. */				//TODO: confusing. can consolidate?
+#define PATH_FLEXIBILITY_FACTOR 1.3
 
-static pthread_mutex_t f_thread_mutex;
-static double f_total_prob = 0;
+/* If core analysis is enabled in user options then probability analysis is only performed for blocks in the region 
+   that is >= 'CORE_OFFSET' blocks away from the perimeter */
+#define CORE_OFFSET 3
 
-/* used to analyze reachability by looking at only x% worst possible (least routable) connections at
-   each length. the idea is that bad routability of a minor fraction of all connections is sufficient
-   to make an architecture unroutable */
-typedef My_Fixed_Size_PQ< float, less<float> > t_lowest_probs_pq;
-static vector< t_lowest_probs_pq > f_lowest_probs_pqs;
+/* Which probability analysis mode should be used? See e_probability_mode for options */
+#define PROBABILITY_MODE PROPAGATE //CUTLINE_SIMPLE
 
-static int f_num_conns = 0;
-static int f_desired_conns = 0;
+/* what percentage of worst node demands to look at? */
+#define WORST_NODE_DEMAND_PERCENTILE 0.05
+
+/* what percentage of worst connection probabilities (at each connection length) to look at? */
+#define WORST_ROUTABILITY_PERCENTILE 0.10
 
 
-/**** Enums ****/
 
+/************ Forward-Declarations ************/
+class Conn_Info;
+
+
+
+/************ Enums ************/
 /* specified a mode for topological graph traversal */
 enum e_topological_mode{
 	ENUMERATE = 0,		/* enumerates paths through each node */
 	PROBABILITY		/* calculate probability of reaching the destination node based on already-calculated node demands */
 };
 
-/* specifies mode of probability analysis to do
+/* specifies mode of probability analysis to do								//TODO: outdated comment
    PROPAGATE: probabilities are propagated from source to sink using bucket structures.
    	Can estimate probabilities of reaching a node by looking at the probabilities of reaching
 	that node's parents (and so forth)
@@ -65,10 +72,10 @@ enum e_probability_mode{
 	CUTLINE_RECURSIVE,
 	RELIABILITY_POLYNOMIAL
 };
-#define PROBABILITY_MODE PROPAGATE //CUTLINE_SIMPLE
 
 
-/**** Typedefs ****/
+
+/************ Typedefs ************/
 /* a t_ss_distances structure for each thread */
 typedef vector< t_ss_distances > t_thread_ss_distances;
 /* a t_node_topo_inf structure for each thread */
@@ -86,7 +93,15 @@ typedef vector< pthread_t > t_threads;
    to expand */
 typedef set< Node_Waiting > t_nodes_waiting;
 
-/**** Classes ****/
+/* used to analyze reachability by looking at a percentile of the least routable connections at each length */
+typedef My_Fixed_Size_PQ< float, less<float> > t_lowest_probs_pq;
+
+/* for each thread, a structure that defines the enumeration problem for said thread */
+typedef vector< Conn_Info > t_thread_conn_info;
+
+
+
+/************ Classes ************/
 /* used for multithreading of path enumeration / probability analysis.
    defines the problem parameters for each thread */
 class Conn_Info{
@@ -102,11 +117,44 @@ public:
 	t_nodes_visited *nodes_visited;
 	e_topological_mode topological_mode;
 };
-/* for each thread, a structure that defines the enumeration problem for said thread */
-typedef vector< Conn_Info > t_thread_conn_info;
 
 
-/**** Function Declarations ****/
+/* Contains path enumeration & probability analysis results */
+class Analysis_Results{
+public:
+	/* mutex for threads wishing to add to the results */
+	pthread_mutex_t thread_mutex;
+
+	/* total weighted probability over all connections */
+	double total_prob;
+
+	/* used to analyze routability by looking at only x% worst possible (least routable) connections at
+	   each length. the idea is that bad routability of a minor fraction of all connections is sufficient
+	   to make an architecture unroutable */
+	vector< t_lowest_probs_pq > lowest_probs_pqs;
+
+	/* total number of connections that we WANT to analyze */
+	int desired_conns;
+	/* total number of connections that we ACTUALLY analyzed (maybe some connections were unroutable so we just couldn't enumerate paths from them, etc) */
+	int num_conns;
+
+	/* constructor to initialize constituent variables to 0 */
+	Analysis_Results(){
+		this->total_prob = 0;
+		this->desired_conns = 0;
+		this->num_conns = 0;
+	}
+};
+
+
+/************ File-Scope Variables ************/
+/* Structure containing relevant results for path enumeration and routability analysis.
+   It can be written to by different threads with the help of the thread_mutex member variable */
+static Analysis_Results f_analysis_results = Analysis_Results();
+
+
+
+/************ Function Declarations ************/
 /* performs routability analysis on an FPGA architecture */
 static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs);
@@ -215,7 +263,7 @@ static float analyze_lowest_probs_pqs( vector< t_lowest_probs_pq > &lowest_probs
 
 
 
-/**** Function Definitions ****/
+/************ Function Definitions ************/
 /* the entry function to performing routability analysis */
 void run_analysis(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs){
@@ -238,20 +286,20 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	vector<int> conns_at_length;
 
-	f_lowest_probs_pqs.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
+	f_analysis_results.lowest_probs_pqs.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
 	get_conn_length_stats(user_opts, routing_structs, arch_structs, conns_at_length);
 	for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
 		if (conns_at_length[ilen] == 0){
 			continue;
 		}
-		int entries_limit = conns_at_length[ilen] * 0.10;		//TODO: magic numbers like this should definitely be #defines
+		int entries_limit = conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE;
 
-		f_lowest_probs_pqs[ilen].set_properties( entries_limit );
+		f_analysis_results.lowest_probs_pqs[ilen].set_properties( entries_limit );
 	}
 	
 
 	/* initialize mutex that will be used for synchronizing threads' updates to the probability metric */
-	pthread_mutex_init(&f_thread_mutex, NULL);
+	pthread_mutex_init(&f_analysis_results.thread_mutex, NULL);
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
 
@@ -476,22 +524,19 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		RR_Node &node = routing_structs->rr_node[inode];
 		e_rr_type type = node.get_rr_type();
 		if (type == CHANX || type == CHANY){
-			//if (node.get_xlow() > 2 && node.get_ylow() > 2 && node.get_xhigh() < grid_size_x-2 && node.get_yhigh() < grid_size_y-2){
-			//if (node.get_xlow() >= 5 && node.get_ylow() >= 5 && node.get_xhigh() <= 6 && node.get_yhigh() <= 6){
 				double demand = node.get_demand(user_opts);
 				//cout << " n" << inode << " demand: " << demand << endl;
 				total_demand += demand;
 				squared_demand += demand*demand;
 
 				num_routing_nodes++;
-			//}
 		}
 	}
 	
 
 	if (topological_mode == ENUMERATE){
 		float normalized_demand = node_demand_metric(user_opts, routing_structs->rr_node);
-		cout << "fraction enumerated: " << (float)f_num_conns / (float)f_desired_conns << endl;
+		cout << "fraction enumerated: " << (float)f_analysis_results.num_conns / (float)f_analysis_results.desired_conns << endl;
 		cout << "Total demand: " << total_demand << endl;
 		cout << "Total squared demand: " << squared_demand << endl;
 		cout << "Normalized demand: " << normalized_demand << endl; //total_demand / (double)num_routing_nodes << endl;
@@ -499,8 +544,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		cout << "Normalized squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
 	} else {
-		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_lowest_probs_pqs );
-		cout << "Total prob: " << f_total_prob << endl;
+		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
+		cout << "Total prob: " << f_analysis_results.total_prob << endl;
 		cout << "Pessimistic prob: " << worst_probabilities_metric << endl;
 	}
 }
@@ -731,9 +776,9 @@ void* enumerate_paths_from_source( void *ptr ){
 												nodes_visited, topological_mode, user_opts);
 									
 									iterations++;
-									pthread_mutex_lock(&f_thread_mutex);
-									f_desired_conns++;
-									pthread_mutex_unlock(&f_thread_mutex);
+									pthread_mutex_lock(&f_analysis_results.thread_mutex);
+									f_analysis_results.desired_conns++;
+									pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 								}
 							}
 						}
@@ -792,7 +837,7 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 				WTHROW(EX_PATH_ENUM, "Didn't expect logic block to have > 0 widht/height offset");
 			}
 
-			/* it is assumed there is a source for each output pin */
+			/* it is assumed there is a source for each output pin */		//TODO: how correct is this? what if we have pin equivalence??????
 			int num_output_pins = fill_type->get_num_drivers();
 
 			/* for each legal length */
@@ -928,9 +973,9 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 							scaling_factor_for_enumerate);
 
 		/* increment number of connections for which paths have so far been enumerated */
-		pthread_mutex_lock(&f_thread_mutex);
-		f_num_conns++;
-		pthread_mutex_unlock(&f_thread_mutex);
+		pthread_mutex_lock(&f_analysis_results.thread_mutex);
+		f_analysis_results.num_conns++;
+		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	} else if (topological_mode == PROBABILITY){
 		/* estimate probability of connection being routable and increment the probability metric */
 
@@ -1556,17 +1601,17 @@ int get_num_sinks(int sink_node_ind, t_rr_node &rr_node, Physical_Type_Descripto
 /* function for a thread to increment the probability metric */
 void increment_probability_metric( float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
 				int num_subsources, int num_subsinks ){
-	pthread_mutex_lock(&f_thread_mutex);
-	f_total_prob += probability_increment;
+	pthread_mutex_lock(&f_analysis_results.thread_mutex);
+	f_analysis_results.total_prob += probability_increment;
 
 
 	int div_factor = num_subsources * num_subsinks;
 	float push_value = probability_increment / (float)div_factor;
 	for (int i = 0; i < div_factor; i++){
-		f_lowest_probs_pqs[connection_length].push( push_value );
+		f_analysis_results.lowest_probs_pqs[connection_length].push( push_value );
 	}
 
-	pthread_mutex_unlock(&f_thread_mutex);
+	pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 }
 
 
