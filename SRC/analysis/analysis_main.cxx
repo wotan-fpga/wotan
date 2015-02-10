@@ -1129,6 +1129,8 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 						propagate_traversal_done_func);
 			
 			probability_sink_reachable = propagate_structs.prob_routable;
+
+			//cout << "prob reachable: " << probability_sink_reachable << endl;
 		} else if ( PROBABILITY_MODE == RELIABILITY_POLYNOMIAL ){
 			if (user_opts->use_routing_node_demand == UNDEFINED){
 				WTHROW(EX_PATH_ENUM, "Probability mode was set to RELIABILITY_POLYNOMIAL. But user_opts->use_routing_node_demand was not set!");
@@ -1502,7 +1504,7 @@ void get_sum_of_source_probabilities(int source_node_ind, t_rr_node &rr_node, t_
 	if (node_type == SOURCE){
 		/* sum of the probabilities of the constituent pins */
 		Pin_Class &pin_class = fill_block_type.class_inf[node_ptc];
-		int num_pins = pin_class.get_num_pins();	
+		int num_pins = pin_class.get_num_pins();
 
 		float this_pin_prob = UNDEFINED;
 		for (int ipin = 0; ipin < num_pins; ipin++){
@@ -1536,7 +1538,6 @@ void get_sum_of_source_probabilities(int source_node_ind, t_rr_node &rr_node, t_
 	} else {
 		WTHROW(EX_PATH_ENUM, "Unexpected node type: " << rr_node[source_node_ind].get_rr_type_string());
 	}
-
 }
 
 /* returns number of sinks corresponding to the specified super-sink node */

@@ -43,6 +43,7 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 	//float node_demand = rr_node[popped_node].get_demand();
 	float node_demand = get_node_demand_adjusted_for_path_history(popped_node, rr_node, from_node_ind, to_node_ind, propagate_structs->fill_type, user_opts);
 	float adjusted_demand = min(1.0F, node_demand);
+	//cout << " node " << popped_node << "  rr_type: " << rr_node[popped_node].get_rr_type_string() << "  weight: " << node_weight << "  demand: " << node_demand << endl;
 
 	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf);
 

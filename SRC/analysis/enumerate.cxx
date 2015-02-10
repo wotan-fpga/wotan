@@ -31,24 +31,28 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 
 	/* increment node demand */
 	if (traversal_dir == FORWARD_TRAVERSAL){
-		/* increment node demand */
-		int node_weight = rr_node[popped_node].get_weight();
-		int dist_to_source = ss_distances[popped_node].get_source_distance();
-		float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
-		rr_node[popped_node].increment_demand( demand_contribution );
+		/* increment node demand of all nodes except SOURCE & SINK */
+		e_rr_type node_type = rr_node[popped_node].get_rr_type();
+		if (node_type != SOURCE && node_type != SINK){
+			int node_weight = rr_node[popped_node].get_weight();
+			int dist_to_source = ss_distances[popped_node].get_source_distance();
+			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
+			rr_node[popped_node].increment_demand( demand_contribution );
 
-		if (user_opts->keep_path_count_history){
-			e_rr_type type = rr_node[popped_node].get_rr_type();
-			if (type == OPIN || type == IPIN || type == CHANX || type == CHANY){
-				rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[from_node_ind]);
-				rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[to_node_ind]);
+			/* TODO: comment */
+			if (user_opts->keep_path_count_history){
+				e_rr_type type = rr_node[popped_node].get_rr_type();
+				if (type == OPIN || type == IPIN || type == CHANX || type == CHANY){
+					rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[from_node_ind]);
+					rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[to_node_ind]);
+				}
 			}
 		}
 
+		/* add to existing count of the number of routing nodes (CHANX/CHANY/IPIN/OPIN) in the legal subgraph */
 		Enumerate_Structs *enumerate_structs = (Enumerate_Structs *)user_data;
 		int popped_node_weight = rr_node[popped_node].get_weight();
 		if ( ss_distances[popped_node].is_legal(popped_node_weight, max_path_weight) ){
-			e_rr_type node_type = rr_node[popped_node].get_rr_type();
 			if (node_type == CHANX || node_type == CHANY || node_type == IPIN || node_type == OPIN){
 				enumerate_structs->num_routing_nodes_in_subgraph++;
 			}
