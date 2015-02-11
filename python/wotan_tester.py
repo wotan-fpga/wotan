@@ -503,8 +503,13 @@ class Wotan_Tester:
 		try_num = 1
 		while abs(current - target) > target_tolerance:
 			if try_num > max_tries:
-				print('has taken more than ' + str(max_tries) + ' tries to binary search for correct pin demand. terminating...')
-				sys.exit()
+				if current < target:
+					#the architecture is probably very unroutable and it simply can't get its routability
+					#up to 'target' (this tends to happen with some planar out-equiv architectures)
+					break
+				else:
+					print('has taken more than ' + str(max_tries) + ' tries to binary search for correct pin demand. terminating...')
+					sys.exit()
 
 			#get next value of pin demand to try
 			pin_demand_current = (pin_demand_high + pin_demand_low) / 2
