@@ -226,15 +226,21 @@ class Wotan_Tester:
 		return output
 
 	#replaces CLB Fc_in and Fc_out in the architecture file according to specified parameters
-	def replace_arch_fc(self, arch_path, fc_in, fc_out):
+	#count specifies how many instances of the fcin/fcout line to replace. If 0 or omitted, replace all.
+	def replace_arch_fc(self, arch_path, fc_in, fc_out, count=0):
 		clb_regex = '.*pb_type name="clb".*'
 		fc_regex = 'fc default_in_type="frac" default_in_val="\d+\.\d*" default_out_type="frac" default_out_val="\d+\.\d*"'
 		new_line = 'fc default_in_type="frac" default_in_val="' + str(fc_in) + '" default_out_type="frac" default_out_val="' + str(fc_out) + '"'
 
-		#use negative lookahead to replace the first 'fc def...' line that occurs after the clb pb type specification
-		line_regex = fc_regex + '(?!' + clb_regex + ')';
+		if count == 1:
+			#use negative lookahead to replace the first 'fc def...' line that occurs after the clb pb type specification
+			lookahead_regex = '(?!' + clb_regex + ')'
+			line_regex = fc_regex + lookahead_regex
+		else:
+			#if we want to replace multiple instances of the pattern then it doesn't make sense to use lookahead
+			line_regex = fc_regex
 
-		replace_single_line_in_file(line_regex, new_line, arch_path)
+		replace_pattern_in_file(line_regex, new_line, arch_path, count=count)
 
 
 	#replaces wirelength in the architecture with the specified length. switch population is full
@@ -253,9 +259,10 @@ class Wotan_Tester:
 		new_cb_type = '<cb type="pattern">' + new_cb_pattern + '</cb>'
 
 		#do regex replacements
-		replace_single_line_in_file(segment_regex, new_segment, arch_path)
-		replace_single_line_in_file(sb_type_regex, new_sb_type, arch_path)
-		replace_single_line_in_file(cb_type_regex, new_cb_type, arch_path)
+		replace_pattern_in_file(segment_regex, new_segment, arch_path, count=1)
+		replace_pattern_in_file(sb_type_regex, new_sb_type, arch_path, count=1)
+		replace_pattern_in_file(cb_type_regex, new_cb_type, arch_path, count=1)
+
 
 	#replaces switch block in the architecture
 	def replace_arch_switchblock(self, arch_path, new_switchblock):
@@ -269,7 +276,7 @@ class Wotan_Tester:
 		#new switch block line
 		new_switchblock_line = '<switch_block type="' + new_switchblock + '" fs="3"/>'
 
-		replace_single_line_in_file(switchblock_regex, new_switchblock_line, arch_path)
+		replace_pattern_in_file(switchblock_regex, new_switchblock_line, arch_path, count=1)
 
 	#replaces pin equivalence in architecture
 	def replace_arch_pin_equiv(self, arch_path, new_input_equiv, new_output_equiv, num_ipins=40, num_opins=20):
@@ -303,8 +310,8 @@ class Wotan_Tester:
 		input_equiv_line = '<input name="I" num_pins="' + str(num_ipins) + '" equivalent="' + input_equiv_str + '"/>'
 		output_equiv_line = '<output name="O" num_pins="' + str(num_opins) + '" equivalent="' + output_equiv_str + '"/>'
 
-		replace_single_line_in_file(input_equiv_regex, input_equiv_line, arch_path)
-		replace_single_line_in_file(output_equiv_regex, output_equiv_line, arch_path)
+		replace_pattern_in_file(input_equiv_regex, input_equiv_line, arch_path, count=1)
+		replace_pattern_in_file(output_equiv_regex, output_equiv_line, arch_path, count=1)
 
 
 	#returns list of MCNC benchmarks
@@ -455,7 +462,7 @@ class Wotan_Tester:
 	#	new_line = '\tthis->opin_probability = ' + str(new_pin_demand) + ';'
 
 	#	#replace the target line
-	#	self.replace_single_line_in_file( opin_probability_regex, new_line, target_file )
+	#	self.replace_pattern_in_file( opin_probability_regex, new_line, target_file )
 
 
 	#performs binary search to adjust pin demand in wotan until the target metric is equal to the desired value within some tolerance.
@@ -553,17 +560,27 @@ class Wotan_Tester:
 	
 	#replaces parameters in VPR architecture file according to the given test suite and an index
 	#into the test suite's 'sweep_range' list
-	def update_arch_based_on_test_suite(self, arch_path, test_suite, sweep_val):
+	def update_arch_based_on_test_suite(self, arch_path, test_suite, sweep_val, fcs_to_replace='clb'):
 		#update VPR arch file based on temporary Arch_Point_Info object
 		arch_point_info = Arch_Point_Info.from_wotan_test_suite( test_suite, test_suite.sweep_range.index(sweep_val) )
-		self.update_arch_based_on_arch_point(arch_path, arch_point_info)
+		self.update_arch_based_on_arch_point(arch_path, arch_point_info, fcs_to_replace)
 		
 	#replaces parameters in VPR architecture file according to the given Arch_Point_Info object.
-	def update_arch_based_on_arch_point(self, arch_path, arch_point_info):
+	def update_arch_based_on_arch_point(self, arch_path, arch_point_info, fcs_to_replace='clb'):
 		self.replace_arch_wirelength( arch_path, arch_point_info.wirelength )
 		self.replace_arch_pin_equiv( arch_path, arch_point_info.input_equiv, arch_point_info.output_equiv )
 		self.replace_arch_switchblock( arch_path, arch_point_info.switchblock )
-		self.replace_arch_fc(arch_path, arch_point_info.fcin, arch_point_info.fcout)
+
+		count = 0
+		if fcs_to_replace == "clb":
+			count = 1
+		elif fcs_to_replace == "all":
+			count = 0	#will replace all occurances of the fcin/fcout lines
+		else:
+			print('Unrecognized string specifying how many fcin/fcouts to replace: ' + str(fcs_to_replace))
+			sys.exit()
+
+		self.replace_arch_fc(arch_path, arch_point_info.fcin, arch_point_info.fcout, count=count)
 
 
 
@@ -843,7 +860,7 @@ class Wotan_Tester:
 				vpr_results = []
 				for arch in arch_pair:
 					ind = arch_pair.index(arch)
-					self.update_arch_based_on_arch_point(self.vpr_arch_path, arch_pair[ind] )
+					self.update_arch_based_on_arch_point(self.vpr_arch_path, arch_pair[ind], fcs_to_replace='all' )
 
 					results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, self.vpr_arch_path, vpr_base_opts, num_threads=7)
 					vpr_results += [results[0]]
@@ -1046,15 +1063,17 @@ class Arch_Point_Info:
 
 
 ############ Regex Related ############
-#replaces single string in specified file according to regex
-def replace_single_line_in_file(line_regex, new_line, file_path):
+#replaces strings in specified file according to regex
+#if the count variable is omitted or 0 all lines will be replaced. otherwise count
+#specifies the maximum number of pattern occurences to be replaced
+def replace_pattern_in_file(line_regex, new_line, file_path, count=0):
 	#read the old file into a string
 	fid = open(file_path, 'r')
 	file_string = fid.read()
 	fid.close()
 
 	#replace specified line in the string
-	new_file_string = re.sub(line_regex, new_line, file_string, count=1, flags=re.DOTALL)   #DOTALL necessary for '.' character to match newline as well
+	new_file_string = re.sub(line_regex, new_line, file_string, count=count, flags=re.DOTALL)   #DOTALL necessary for '.' character to match newline as well
 
 	#commenting because new file may be intended to be the same as the old file...
 	#if file_string == new_file_string:
@@ -1065,6 +1084,7 @@ def replace_single_line_in_file(line_regex, new_line, file_path):
 	fid = open(file_path, 'w')
 	fid.write(new_file_string)
 	fid.close()
+
 
 #parses specified string and returns the last value to match pattern
 def regex_last_token(string, pattern):
