@@ -6,7 +6,7 @@ import wotan_tester as wt
 ############ Paths ############
 base_path = "/autofs/fs1.ece/fs1.eecg.vaughn/opetelin"
 vtr_path = base_path + "/vtr-verilog-to-routing"
-wotan_path = base_path + "/wotan/wotan"
+wotan_path = base_path + "/wotan"
 wotan_arch = "k6_frac_N10_mem32K_40nm_only_clb.xml"
 vpr_arch = "k6_frac_N10_mem32K_40nm_test.xml"
 
