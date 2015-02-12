@@ -427,6 +427,7 @@ class Wotan_Tester:
 		for bm in benchmark_list:
 			iterables += [VPR_Benchmark_Info(vpr_arch, bm, vpr_base_opts, benchmark_list, regex_list)]
 
+		os.system("taskset -p 0xffffffff %d" % os.getpid())
 		mp_pool = multiprocessing.Pool(processes=num_threads)
 		try:
 			outputs = mp_pool.map(self.run_vpr_benchmark, iterables)
