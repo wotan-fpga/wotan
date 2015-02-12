@@ -861,6 +861,7 @@ class Wotan_Tester:
 			print('Unexpected test type: ' + str(self.test_type))
 			sys.exit()
 
+
 		#would like to increase pin demand until ONE of the architectures hits the below probability.
 		#at that point the arch with the lower probability will be considered more routable
 		target_prob = 0.3
@@ -875,6 +876,9 @@ class Wotan_Tester:
 				print('expected two entries in arch pair, got ' + str(len(arch_pair)))
 				sys.exit()
 			
+			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
+			self.make_wotan()
+			self.make_vpr()
 
 			############ Compare the architecture pair using Wotan ############
 			print(str(arch_pair[0]) + ' VS ' + str(arch_pair[1]))
