@@ -9,7 +9,6 @@ import multiprocessing
 #from enum import Enum
 import numpy as np
 import matplotlib.pyplot as plt
-from plotly.graph_objs import *
 import copy_reg
 import types
 
