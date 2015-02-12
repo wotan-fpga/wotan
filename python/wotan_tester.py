@@ -14,12 +14,20 @@ from plotly.graph_objs import *
 
 
 ###### Enums ######
+#TODO: need to replace Enum with something python-compatible (a tuple of strings?). Otherwise burst.eecg can't run it.
 #Represents how the test should be run for each architecture point.
-class e_Test_Type(Enum):
-	normal = 0				#just a regular run
-	binary_search_norm_demand = 1		#adjust pin demand until normalized node demands hits some target value
-	binary_search_total_prob = 2		#adjust pin demand until total probability hits some target value
-	binary_search_pessimistic_prob = 3	#adjust pin demand until pessimistic probability hits some target value
+
+e_Test_Type = ('normal',
+		'binary_search_norm_demand',
+		'binary_search_total_prob',
+		'binary_search_pessimistic_prob'
+		)
+
+#class e_Test_Type(Enum):
+#	normal = 0				#just a regular run
+#	binary_search_norm_demand = 1		#adjust pin demand until normalized node demands hits some target value
+#	binary_search_total_prob = 2		#adjust pin demand until total probability hits some target value
+#	binary_search_pessimistic_prob = 3	#adjust pin demand until pessimistic probability hits some target value
 
 
 
@@ -482,14 +490,14 @@ class Wotan_Tester:
 		#true if increasing, false if decreasing
 		monotonic_increasing = True
 		#what we're searching for in wotan output
-		if test_type == e_Test_Type.binary_search_norm_demand:
+		if test_type == 'binary_search_norm_demand':
 			if not target_regex:
 				target_regex = '.*Normalized demand: (\d+\.\d+).*'
 			if not target:
 				target = 0.8
 			if not target_tolerance:
 				target_tolerance = 0.01 
-		elif test_type == e_Test_Type.binary_search_pessimistic_prob:
+		elif test_type == 'binary_search_pessimistic_prob':
 			if not target_regex:
 				target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 			if not target:
@@ -806,7 +814,7 @@ class Wotan_Tester:
 	                                 compare_against_VPR=False):	#if enabled, a VPR comparison will also be run for each architecture pair (to verify Wotan metrics)
 
 
-		if self.test_type != e_Test_Type.binary_search_pessimistic_prob:
+		if self.test_type != 'binary_search_pessimistic_prob':
 			print('Unexpected test type: ' + str(self.test_type))
 			sys.exit()
 
