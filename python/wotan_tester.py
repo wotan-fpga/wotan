@@ -6,7 +6,7 @@ import datetime
 import re
 import random
 import multiprocessing
-from enum import Enum
+#from enum import Enum
 import numpy as np
 import matplotlib.pyplot as plt
 from plotly.graph_objs import *
