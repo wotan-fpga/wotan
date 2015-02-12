@@ -45,7 +45,7 @@ wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_stru
 wotan_opts = wotan_opts_normal
 
 #test_type = wt.Test_Type.normal
-test_type = wt.e_Test_Type.binary_search_pessimistic_prob
+test_type = 'binary_search_pessimistic_prob'
 plot_index = 5			#into into labels_Rel/regex_Rel -- this value will be plotted on a graph
 
 ############ Test Suites ############
@@ -708,8 +708,8 @@ fcin_outequiv_subset_suites = [test_fcin_subset_outequiv_1, test_fcin_subset_out
 
 
 ############ Compile The Test Suites ############
-test_suites = [fcin_inequiv_suites, fcout_inequiv_suites, fcout_inequiv_universal_suites, fcin_inequiv_universal_suites, fcout_inequiv_subset_suites, fcin_inequiv_subset_suites] 
-              # fcin_outequiv_suites, fcout_outequiv_suites, fcout_outequiv_universal_suites, fcin_outequiv_universal_suites, fcout_outequiv_subset_suites, fcin_outequiv_subset_suites]    #fcin_switchblocks_suites] #, fcin_noequiv_suites]
+test_suites = [fcin_inequiv_suites, fcout_inequiv_suites, fcout_inequiv_universal_suites, fcin_inequiv_universal_suites, fcout_inequiv_subset_suites, fcin_inequiv_subset_suites, 
+               fcin_outequiv_suites, fcout_outequiv_suites, fcout_outequiv_universal_suites, fcin_outequiv_universal_suites, fcout_outequiv_subset_suites, fcin_outequiv_subset_suites]    #fcin_switchblocks_suites] #, fcin_noequiv_suites]
 
 
 

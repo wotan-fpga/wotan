@@ -6,21 +6,38 @@ import datetime
 import re
 import random
 import multiprocessing
-from enum import Enum
+#from enum import Enum
 import numpy as np
 import matplotlib.pyplot as plt
 from plotly.graph_objs import *
-
-
+import copy_reg
+import types
 
 ###### Enums ######
-#Represents how the test should be run for each architecture point.
-class e_Test_Type(Enum):
-	normal = 0				#just a regular run
-	binary_search_norm_demand = 1		#adjust pin demand until normalized node demands hits some target value
-	binary_search_total_prob = 2		#adjust pin demand until total probability hits some target value
-	binary_search_pessimistic_prob = 3	#adjust pin demand until pessimistic probability hits some target value
+e_Test_Type = ('normal',
+		'binary_search_norm_demand',
+		'binary_search_total_prob',
+		'binary_search_pessimistic_prob'
+		)
 
+#replacing enum with tuple above because burst.eecg doesn't have support for python3-enum or python-enum34
+#class e_Test_Type(Enum):
+#	normal = 0				#just a regular run
+#	binary_search_norm_demand = 1		#adjust pin demand until normalized node demands hits some target value
+#	binary_search_total_prob = 2		#adjust pin demand until total probability hits some target value
+#	binary_search_pessimistic_prob = 3	#adjust pin demand until pessimistic probability hits some target value
+
+
+#redifine the pickling function used by 'pickle' (in turn used by multiprocessing) s.t.
+#multiprocessing will work with instancemethods (i.e. class functions).
+#this is necessary for python2 compatibility. python3 solves all ills but burst.eecg
+#doesn't support it fully yet
+def _pickle_method(m):
+	if m.im_self is None:
+		return getattr, (m.im_class, m.im_func.func_name)
+	else:
+		return getattr, (m.im_self, m.im_func.func_name)
+copy_reg.pickle(types.MethodType, _pickle_method)
 
 
 
@@ -394,12 +411,18 @@ class Wotan_Tester:
 		#multithread vpr runs
 		iterables = []
 		for bm in benchmark_list:
-			iterables += [(vpr_arch, bm, vpr_base_opts, benchmark_list, regex_list)]
+			iterables += [VPR_Benchmark_Info(vpr_arch, bm, vpr_base_opts, benchmark_list, regex_list)]
 
 		mp_pool = multiprocessing.Pool(processes=num_threads)
-		outputs = mp_pool.starmap(self.run_vpr_benchmark, iterables)
-		mp_pool.close()
-		mp_pool.join()
+		try:
+			outputs = mp_pool.map(self.run_vpr_benchmark, iterables)
+			mp_pool.close()
+			mp_pool.join()
+		except KeyboardInterrupt:
+			print('Caught KeyboardInterrupt. Terminating threads and exiting.')
+			mp_pool.terminate()
+			mp_pool.join()
+			sys.exit()
 
 		outputs = np.array(outputs)
 		
@@ -414,13 +437,25 @@ class Wotan_Tester:
 		return geomean_outputs
 
 	#runs specified vpr benchmark and returns regex'd outputs in a list
-	def run_vpr_benchmark(self, vpr_arch, benchmark, vpr_base_opts, benchmark_list, regex_list):
+	def run_vpr_benchmark(self, bm_info):
+		vpr_arch = bm_info.vpr_arch
+		benchmark = bm_info.benchmark
+		vpr_base_opts = bm_info.vpr_base_opts
+		benchmark_list = bm_info.benchmark_list
+		regex_list = bm_info.regex_list
+
 		ind = benchmark_list.index(benchmark)
 		print('\t\tbenchmark ' + str(ind))
 		output_list = []
-
-		vpr_opts = vpr_arch + ' ' + benchmark + ' ' + vpr_base_opts
-		vpr_out = self.run_vpr(vpr_opts)
+		
+		try:
+			vpr_opts = vpr_arch + ' ' + benchmark + ' ' + vpr_base_opts
+			vpr_out = self.run_vpr(vpr_opts)
+		except KeyboardInterrupt:
+			#dealing with python 2.7 compatibility stupidness... i can't get multiprocessing to terminate on "ctrl-c"
+			#unless I write this try-except statement. and even then I have to bang on ctrl-c repeatedly to get the desired effect :(
+			print('worker received interrupt. exiting.')
+			return
 
 		#parse outputs according to user's regex list
 		for regex in regex_list:
@@ -482,14 +517,14 @@ class Wotan_Tester:
 		#true if increasing, false if decreasing
 		monotonic_increasing = True
 		#what we're searching for in wotan output
-		if test_type == e_Test_Type.binary_search_norm_demand:
+		if test_type == 'binary_search_norm_demand':
 			if not target_regex:
 				target_regex = '.*Normalized demand: (\d+\.\d+).*'
 			if not target:
 				target = 0.8
 			if not target_tolerance:
 				target_tolerance = 0.01 
-		elif test_type == e_Test_Type.binary_search_pessimistic_prob:
+		elif test_type == 'binary_search_pessimistic_prob':
 			if not target_regex:
 				target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 			if not target:
@@ -806,7 +841,7 @@ class Wotan_Tester:
 	                                 compare_against_VPR=False):	#if enabled, a VPR comparison will also be run for each architecture pair (to verify Wotan metrics)
 
 
-		if self.test_type != e_Test_Type.binary_search_pessimistic_prob:
+		if self.test_type != 'binary_search_pessimistic_prob':
 			print('Unexpected test type: ' + str(self.test_type))
 			sys.exit()
 
@@ -1059,6 +1094,22 @@ class Arch_Point_Info:
 	def __repr__(self):
 		return self.as_str()
 
+
+class VPR_Benchmark_Info():
+	def __init__(self, vpr_arch,
+	             benchmark,
+		     vpr_base_opts,
+		     benchmark_list,
+		     regex_list
+                     ):
+		
+		self.vpr_arch = vpr_arch
+		self.benchmark = benchmark
+		self.vpr_base_opts = vpr_base_opts
+		self.benchmark_list = benchmark_list
+		self.regex_list = regex_list
+		
+		
 
 
 
