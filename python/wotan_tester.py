@@ -329,6 +329,20 @@ class Wotan_Tester:
 		replace_pattern_in_file(input_equiv_regex, input_equiv_line, arch_path, count=1)
 		replace_pattern_in_file(output_equiv_regex, output_equiv_line, arch_path, count=1)
 
+	#enable/disable VPR's rr struct dumps
+	def change_vpr_rr_struct_dump(self, vpr_path, enable=False):
+		rr_graph_path = vpr_path + '/SRC/route/rr_graph.c'
+		regex = '/*\tdump_rr_structs\(\"\./dumped_rr_structs.txt\"\);'
+
+		print(rr_graph_path)
+
+		newline = '\tdump_rr_structs("./dumped_rr_structs.txt");'
+		if enable == False:
+			newline = '//' + newline
+
+		replace_pattern_in_file(regex, newline, rr_graph_path, count=1)
+
+
 
 	#returns list of MCNC benchmarks
 	def get_mcnc_benchmarks(self):
@@ -405,6 +419,7 @@ class Wotan_Tester:
 			outputs += [[]]
 
 		#run benchmarks
+		self.change_vpr_rr_struct_dump(self.vpr_path, enable=False)
 		self.make_vpr()
 		
 		#multithread vpr runs
@@ -701,6 +716,7 @@ class Wotan_Tester:
 	#runs the specified test suite and writes results to a file
 	def run_test_suite(self, test_suite, results_directory):
 		#make wotan and vpr
+		self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
 		self.make_wotan()
 		self.make_vpr()
 
