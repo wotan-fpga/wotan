@@ -553,6 +553,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	} else {
 		/* print normalized probability results */
 		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
+		cout.setf(ios::fixed);
+		cout.precision(4);
 		cout << "Total prob: " << f_analysis_results.total_prob / f_analysis_results.max_possible_total_prob << endl;
 		cout << "Pessimistic prob: " << worst_probabilities_metric / (f_analysis_results.max_possible_total_prob * WORST_ROUTABILITY_PERCENTILE) << endl;
 	}
