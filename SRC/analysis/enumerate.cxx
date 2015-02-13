@@ -33,7 +33,9 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 	if (traversal_dir == FORWARD_TRAVERSAL){
 		/* increment node demand of all nodes except SOURCE & SINK */
 		e_rr_type node_type = rr_node[popped_node].get_rr_type();
-		if (node_type != SOURCE && node_type != SINK     && node_type != OPIN && node_type != IPIN){
+		//Note: I added OPIN and IPIN checks below because otherwise high opin demand skews comparisons (I think) unfairly
+		//	away from opin-equivalent architectures. (see commit 8392b21)
+		if (node_type != SOURCE && node_type != SINK && node_type != OPIN && node_type != IPIN){
 			int node_weight = rr_node[popped_node].get_weight();
 			int dist_to_source = ss_distances[popped_node].get_source_distance();
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
