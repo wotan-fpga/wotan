@@ -374,10 +374,12 @@ class Wotan_Tester:
 		]
 
 		#add blif suffix
-		benchmarks = [bm + '.pre-vpr.blif' for bm in benchmarks]
+		#benchmarks = [bm + '.pre-vpr.blif' for bm in benchmarks]
+		benchmarks = [bm + '.blif' for bm in benchmarks]
 
 		#add full path as prefix
-		bm_path = self.vtr_path + '/vtr_flow/benchmarks/blif/wiremap6/'
+		#bm_path = self.vtr_path + '/vtr_flow/benchmarks/blif/wiremap6/'
+		bm_path = self.vtr_path + '/vtr_flow/benchmarks/blif/'
 		benchmarks = [bm_path + bm for bm in benchmarks]
 
 		return benchmarks
@@ -868,7 +870,7 @@ class Wotan_Tester:
 		#at that point the arch with the lower probability will be considered more routable
 		target_prob = 0.3
 		target_tolerance = 0.02
-		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'	#TODO: should make this a function arg?
+		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 
 		#holds a list of results for each arch pair comparison
 		result_table = []
@@ -878,8 +880,8 @@ class Wotan_Tester:
 				print('expected two entries in arch pair, got ' + str(len(arch_pair)))
 				sys.exit()
 			
-			arch1_vpr_opts = arch_pair[0].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
-			arch2_vpr_opts = arch_pair[1].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
+			arch1_vpr_opts = arch_pair[0].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			arch2_vpr_opts = arch_pair[1].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
 
 			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
 			self.make_wotan()
