@@ -45,9 +45,11 @@ copy_reg.pickle(types.MethodType, _pickle_method)
 #represents a suite of Wotan tests to be run
 class Wotan_Test_Suite:
 	def __init__(self, wirelength,		#wirelength to test (number)
-	             input_equiv, 		#should CLB have input equivalence
-		     output_equiv, 		#should CLB have output equivalence
+	             #input_equiv, 		#should CLB have input equivalence
+		     #output_equiv, 		#should CLB have output equivalence
 		     switchblock,		#which switchblock to test (wilton/universal/subset)
+		     arch_name,			#a string specifying the arch to use. should correspond to an entry in 'arch_dictionaries' variable
+		     arch_dictionaries,		#object of type 'Archs' that contains dictionaries of possible archs for use in Wotan and VPR tests
 		     sweep_type,		#what value will be swept for this test (fcin/fcout(
 		     sweep_range,		#what range should the value be swept over? (this should be a list/tuple)
 		     output_regex_list,		#list of regex lines that will be used to parse output (one output per regex)
@@ -59,8 +61,8 @@ class Wotan_Test_Suite:
 		
 
 		self.wirelength = wirelength
-		self.input_equiv = input_equiv
-		self.output_equiv = output_equiv
+		#self.input_equiv = input_equiv
+		#self.output_equiv = output_equiv
 		
 		if switchblock != 'wilton' and switchblock != 'universal' and switchblock != 'subset':
 			print('unrecognized switchblock: ' + switchblock)
@@ -89,6 +91,12 @@ class Wotan_Test_Suite:
 		self.vpr_opts = vpr_opts
 
 		self.extra_descriptor_str = extra_string
+
+		if not isinstance(arch_dictionaries, Archs):
+			print('expected arch_dictionaries to be of type Archs')
+			sys.exit()
+		self.arch_dictionaries = arch_dictionaries
+		self.arch_name = arch_name
 
 
 	#returns a brief string specifying wirelength -- useful for annotating graphs and naming files
@@ -122,12 +130,19 @@ class Wotan_Test_Suite:
 	def sweep_type_str(self):
 		return self.sweep_type
 
+	#returns a brief string specifying the arch file that was used
+	def arch_name_str(self):
+		result = 'arch:' + self.arch_name
+		return result
+
+
 	#returns a string describing the entire test suite -- useful for naming files and stuff
 	def as_str(self, separator='_'):
 		test_str = ''
 		if self.extra_descriptor_str:
 			test_str += self.extra_descriptor_str + separator
-		test_str += self.wirelength_str() + separator + self.switchblock_str() + separator + self.equiv_str() + separator + self.sweep_type_str()
+		test_str += self.wirelength_str() + separator + self.switchblock_str() + separator + \
+				self.sweep_type_str() + self.arch_name_str()
 		return test_str
 
 	#return string to describe a specific attribute
@@ -141,6 +156,8 @@ class Wotan_Test_Suite:
 			return_str = self.switchblock_str()
 		elif attr == 'sweep_type':
 			return_str = self.sweep_type_str()
+		elif attr == 'arch_name':
+			return_str = self.arch_name_str()
 		else:
 			print('unrecognized attribute: ' + attr)
 			sys.exit()
@@ -172,8 +189,6 @@ class Wotan_Tester:
 	#constructor
 	def __init__(self, vtr_path,		#path to the base vtr folder
 	             wotan_path, 		#path to the base wotan folder
-		     wotan_arch,		#name of XML architecture over which WOTAN tests will be run. it is assumed this architecture will be in vtr's timing archs folder
-		     vpr_arch,			#name of XML architecture over which VPR tests will be run
 		     test_type,			#string specifying test type (holds one of the values in e_Test_Type
 		     test_suite_2dlist):	#a list of lists. each sublist contains a set of test suites which should be plotted on the same graph
 
@@ -183,16 +198,10 @@ class Wotan_Tester:
 		#initialize vtr-related stuff
 		self.vtr_path = vtr_path
 		self.vpr_path = vtr_path + "/vpr"
-		self.wotan_arch = wotan_arch
-		self.wotan_arch_path = vtr_path + "/vtr_flow/arch/timing/" + wotan_arch
-		self.vpr_arch = vpr_arch
-		self.vpr_arch_path = vtr_path + "/vtr_flow/arch/timing/" + vpr_arch
 
 		print('\n')
 		print('Wotan Path: ' + self.wotan_path)
 		print('VPR Path: ' + self.vpr_path)
-		print('Wotan Architecture: ' + self.wotan_arch_path)
-		print('VPR Architecture: ' + self.vpr_arch_path + '\n\n')
 
 		#test suite stuff
 		if len(test_suite_2dlist) == 0:
@@ -618,13 +627,13 @@ class Wotan_Tester:
 	#replaces parameters in VPR architecture file according to the given Arch_Point_Info object.
 	def update_arch_based_on_arch_point(self, arch_path, arch_point_info, fcs_to_replace='clb'):
 		self.replace_arch_wirelength( arch_path, arch_point_info.wirelength )
-		self.replace_arch_pin_equiv( arch_path, arch_point_info.input_equiv, arch_point_info.output_equiv )
+		#self.replace_arch_pin_equiv( arch_path, arch_point_info.input_equiv, arch_point_info.output_equiv )	#TODO. comment this out?
 		self.replace_arch_switchblock( arch_path, arch_point_info.switchblock )
 
 		count = 0
-		if fcs_to_replace == "clb":
+		if fcs_to_replace == 'clb':
 			count = 1
-		elif fcs_to_replace == "all":
+		elif fcs_to_replace == 'all':
 			count = 0	#will replace all occurances of the fcin/fcout lines
 		else:
 			print('Unrecognized string specifying how many fcin/fcouts to replace: ' + str(fcs_to_replace))
@@ -915,9 +924,10 @@ class Wotan_Tester:
 				vpr_results = []
 				for arch in arch_pair:
 					ind = arch_pair.index(arch)
-					self.update_arch_based_on_arch_point(self.vpr_arch_path, arch_pair[ind], fcs_to_replace='all' )
+					vpr_arch_path = arch_pair[ind].get_vpr_arch_path()
+					self.update_arch_based_on_arch_point(vpr_arch_path, arch_pair[ind], fcs_to_replace='clb' )
 
-					results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, self.vpr_arch_path, vpr_base_opts, num_threads=7)
+					results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, vpr_arch_path, vpr_base_opts, num_threads=7)
 					vpr_results += [results[0]]
 
 				#Which architecture won according to VPR? Does that match with Wotan's prediction?
@@ -957,8 +967,11 @@ class Wotan_Tester:
 		arch1_metric = None
 		arch2_metric = None
 
+		path_arch1 = arch_point1.get_wotan_arch_path()
+		path_arch2 = arch_point2.get_wotan_arch_path()
+
 		#get pin demand / routability based on first architecture
-		self.update_arch_based_on_arch_point(self.wotan_arch_path, arch_point1)
+		self.update_arch_based_on_arch_point(path_arch1, arch_point1)
 		self.run_vpr( vpr_opts )
 		(arch1_metric, pin_demand, arch1_output) = self.search_for_wotan_pin_demand(wotan_opts = wotan_opts,
 											  test_type = self.test_type,
@@ -967,7 +980,7 @@ class Wotan_Tester:
 											  target_regex = target_regex)
 
 		#now get the routability of the second architecture
-		self.update_arch_based_on_arch_point(self.wotan_arch_path, arch_point2)
+		self.update_arch_based_on_arch_point(path_arch2, arch_point2)
 		self.run_vpr( vpr_opts )
 		arch2_output = self.run_wotan( wotan_opts + ' -opin_demand ' + str(pin_demand) )
 		arch2_metric = float( regex_last_token(arch2_output, target_regex) )
@@ -976,23 +989,55 @@ class Wotan_Tester:
 		return (arch1_metric, arch2_metric)
 
 
+#Contains dictionaries of architectures that can be used for Wotan and VPR 
+#tests
+class Archs:
+	def __init__(self, wotan_archs,
+	             vpr_archs):
+
+		if type(wotan_archs) != dict or type(vpr_archs) != dict:
+			print('Expected both inputs to be of dictionary type')
+			sys.exit()
+		
+		self.wotan_archs = wotan_archs
+		self.vpr_archs = vpr_archs	
+
+
 #Contains info about an architecture data point. Basically mirrors
 # the info contained in Wotan_Test_Suite, except for only one architecture point
 class Arch_Point_Info:
 
 	def __init__(self, wirelength,		#see comments in Wotan_Test_Suite
-	             input_equiv,
-		     output_equiv,
+	             #input_equiv,
+		     #output_equiv,
 		     switchblock,
 		     fcin,
-		     fcout):
+		     fcout,
+		     arch_name,
+		     arch_dictionaries):
 	
 		self.wirelength = wirelength
-		self.input_equiv = input_equiv
-		self.output_equiv = output_equiv
+		#self.input_equiv = input_equiv
+		#self.output_equiv = output_equiv
 		self.switchblock = switchblock
 		self.fcin = fcin
 		self.fcout = fcout
+
+		if not isinstance(arch_dictionaries, Archs):
+			print('expected arch_dictionaries to be of type Archs')
+			sys.exit()
+		self.arch_dictionaries = arch_dictionaries
+		self.arch_name = arch_name
+
+	
+	#returns path to VPR architecture file used for Wotan tests
+	def get_wotan_arch_path(self):
+		return self.arch_dictionaries.wotan_archs[ self.arch_name ]
+
+	#returns path to VPR architecture file used for VPR tests
+	def get_vpr_arch_path(self):
+		return self.arch_dictionaries.vpr_archs[ self.arch_name ]
+
 
 	#overload constructor -- initialize based on Wotan_Test_Suite object
 	@classmethod 
@@ -1002,8 +1047,8 @@ class Arch_Point_Info:
 				  fcout_default=0.1):		#default fcout ('sweep_var_index' will only chance fcin OR fcout -- the other will remain as specified here)
 
 		wirelength = wotan_test_suite.wirelength
-		input_equiv = wotan_test_suite.input_equiv
-		output_equiv = wotan_test_suite.output_equiv
+		#input_equiv = wotan_test_suite.input_equiv
+		#output_equiv = wotan_test_suite.output_equiv
 		switchblock = wotan_test_suite.switchblock
 
 		fcin = fcin_default
@@ -1014,26 +1059,32 @@ class Arch_Point_Info:
 		else:
 			fcout = sweep_val
 
-		return cls(wirelength, input_equiv, output_equiv, switchblock, fcin, fcout)
+		arch_name = wotan_test_suite.arch_name
+		arch_dictionaries = wotan_test_suite.arch_dictionaries
+
+		return cls(wirelength, switchblock, fcin, fcout, arch_name, arch_dictionaries)
 
 
-	#overload constructor -- initialize based on a string. Expecting string to be in the format of this class's 'as_str' function
+	#overload constructor -- initialize based on a string. Expecting string to be in the format of this class' 'as_str' function
 	@classmethod
-	def from_str(cls, s, separator='_'):
-		regex_list = (
-			'.*len(\d).*',			#wirelength
-			'.*fcin(\d+\.*\d*)',		#fcin
-			'.*fcout(\d+\.*\d*)'		#fcout
-		)
+	def from_str(cls, s, arch_dictionaries, separator='_'):
+		#this should be a dictionary...
+		regex_list = {
+			'wirelength' : '.*len(\d).*',
+			'fcin' : '.*fcin(\d+\.*\d*)',
+			'fcout' : '.*fcout(\d+\.*\d*)',
+			'arch_name' : '.*arch:([^' + separator + '\n\r]+)'		
+		}
 
 		#get wirelength, fcin, fcout
-		tmp_list = []
-		for regex in regex_list:
-			tmp_list += [regex_last_token(s, regex)]
+		tmp_dict = {}
+		for key in regex_list:
+			tmp_dict[key] = regex_last_token(s, regex_list[key])
 		
-		wirelength = int(tmp_list[0])
-		fcin = float(tmp_list[1])
-		fcout = float(tmp_list[2])
+		wirelength = int(tmp_dict['wirelength'])
+		fcin = float(tmp_dict['fcin'])
+		fcout = float(tmp_dict['fcout'])
+		arch_name = tmp_dict['arch_name']
 
 		#get switchblock
 		switchblock = None
@@ -1047,27 +1098,17 @@ class Arch_Point_Info:
 			print('could not find a switchblock specification in string:\n\t' + s)
 			sys.exit()
 
-		#get input equivalence
-		input_equiv = False
-		if 'in-eq' in s:
-			input_equiv = True
-
-		#get output equivalence
-		output_equiv = False
-		if 'out-eq' in s:
-			output_equiv = True
-
-		return cls(wirelength, input_equiv, output_equiv, switchblock, fcin, fcout)
+		return cls(wirelength, switchblock, fcin, fcout, arch_name, arch_dictionaries)
 			
 		
 	#returns a string describing an object of this class
 	def as_str(self, separator='_'):
 		result = self.wirelength_str() + separator
-		if self.inequiv_str() != '':
-			result += self.inequiv_str() + separator
-		if self.outequiv_str() != '':
-			result += self.outequiv_str() + separator
-		result += self.switchblock_str() + separator + self.fcin_str() + separator + self.fcout_str()
+		#if self.inequiv_str() != '':
+		#	result += self.inequiv_str() + separator
+		#if self.outequiv_str() != '':
+		#	result += self.outequiv_str() + separator
+		result += self.switchblock_str() + separator + self.fcin_str() + separator + self.fcout_str() + separator + self.arch_name_str()
 		return result
 
 	#returns a brief string specifying wirelength
@@ -1108,6 +1149,11 @@ class Arch_Point_Info:
 		result = 'fcout' + str(round(self.fcout,3))
 		return result
 
+	#returns a brief string specifying the arch file that was used
+	def arch_name_str(self):
+		result = 'arch:' + self.arch_name
+		return result
+
 
 	def __str__(self):
 		return self.as_str()
@@ -1115,6 +1161,7 @@ class Arch_Point_Info:
 		return self.as_str()
 
 
+#class used for passing info in multithreading VPR benchmark runs 
 class VPR_Benchmark_Info():
 	def __init__(self, vpr_arch,
 	             benchmark,
@@ -1215,8 +1262,51 @@ def get_geomean(my_list):
 	return result
 
 
+#creates a group of wotan test suites based on the specified options.
+#where indicated, options are meant to be a list with each entry in the list
+#corresponding to the option that should be passed to the respective test suite. 
+#however if only one option is specified in the list then it will be treated as being 
+#common to all the test suites in this group
+def make_test_group(num_suites,			#number of wotan test suites that are to be in this test group
+                    wirelengths,		#wirelengths for each of the test suites
+		    switchblocks,		#switchblocks for each of the test suites
+		    arch_names,			#architecture names for each of the test suites (meant to index into 'arch_dictionaries')
+		    arch_dictionaries,		#dictionaries of possible architecture paths (indexed by above name) -- common to all suites
+		    sweep_type,			#sweep type (fcin/fcout) -- common to all test suites
+		    sweep_range,		#sweep range -- common to all test suites
+		    output_regex_list,		#what values should be regexed out of wotan tests? -- common to all test suites
+		    output_label_list,		#what human-readable labels should be assigned to above regexed values? -- common to all test suites
+		    plot_index,			#index (in above regex/label lists) that should be plotted on a graph -- common to all test suites
+		    wotan_opts,			#options to run wotan with -- common to all test suites
+		    vpr_opts			#options to run vpr with -- common to all test suites
+                    ):
+
+	test_group = []
+
+	i = 0
+	while i < num_suites:
+		#create new test suite and add it to the test group
+		test_suite = Wotan_Test_Suite(wirelength = wirelengths[i] if len(wirelengths) > 1 else wirelengths[0],
+		                              switchblock = switchblocks[i] if len(switchblocks) > 1 else switchblocks[0],
+					      arch_name = arch_names[i] if len(arch_names) > 1 else arch_names[0],
+					      arch_dictionaries = arch_dictionaries,
+					      sweep_type = sweep_type,
+					      sweep_range = sweep_range,
+					      output_regex_list = output_regex_list,
+					      output_label_list = output_label_list,
+					      plot_index = plot_index,
+					      wotan_opts = wotan_opts,
+					      vpr_opts = vpr_opts
+		                             )
+
+		test_group += [test_suite]
+		i += 1
+
+	return test_group
+
+
 #returns a hard-coded list of Arch_Point_Info pairs
-def my_custom_arch_pair_list():
+def my_custom_arch_pair_list(arch_dictionaries):
 
 	#format: 'len1_in-eq_out-eq_wilton_fcin0.25_fcout_0.5'
 
@@ -1224,8 +1314,9 @@ def my_custom_arch_pair_list():
 	string_pairs = []
 
 	############ Easy ############
-	string_pairs += [['len1_in-eq_wilton_fcin0.45_fcout0.1', 'len1_in-eq_wilton_fcin0.15_fcout0.1']]
-	string_pairs += [['len4_in-eq_wilton_fcin0.5_fcout0.1', 'len2_in-eq_wilton_fcin0.5_fcout0.1']]
+	#string_pairs += [['len1_in-eq_wilton_fcin0.45_fcout0.1', 'len1_in-eq_wilton_fcin0.15_fcout0.1']]
+	#string_pairs += [['len4_in-eq_wilton_fcin0.5_fcout0.1', 'len2_in-eq_wilton_fcin0.5_fcout0.1']]
+	string_pairs += [['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv', 'len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']]
 
 	############ Moderate ############
 
@@ -1235,8 +1326,8 @@ def my_custom_arch_pair_list():
 
 	#build a list of arch pairs from the list of string pairs
 	for string_pair in string_pairs:
-		arch_point0 = Arch_Point_Info.from_str(string_pair[0])
-		arch_point1 = Arch_Point_Info.from_str(string_pair[1])
+		arch_point0 = Arch_Point_Info.from_str(string_pair[0], arch_dictionaries)
+		arch_point1 = Arch_Point_Info.from_str(string_pair[1], arch_dictionaries)
 		arch_pairs += [[arch_point0, arch_point1]]
 
 	return arch_pairs
