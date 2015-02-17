@@ -45,8 +45,6 @@ copy_reg.pickle(types.MethodType, _pickle_method)
 #represents a suite of Wotan tests to be run
 class Wotan_Test_Suite:
 	def __init__(self, wirelength,		#wirelength to test (number)
-	             #input_equiv, 		#should CLB have input equivalence
-		     #output_equiv, 		#should CLB have output equivalence
 		     switchblock,		#which switchblock to test (wilton/universal/subset)
 		     arch_name,			#a string specifying the arch to use. should correspond to an entry in 'arch_dictionaries' variable
 		     arch_dictionaries,		#object of type 'Archs' that contains dictionaries of possible archs for use in Wotan and VPR tests
@@ -56,13 +54,10 @@ class Wotan_Test_Suite:
 		     output_label_list,		#list of readable labels to associate with each regex above (for annotating outputs)
 		     plot_index,		#index into above two lists. which output should be plotted agains the variable swept in the arch file?
 		     wotan_opts,		#a string of wotan options to be used for this test suite
-		     vpr_opts,			#a string of vpr options to be used for this test suite (i.e. to set channel width, architecture, etc)
 		     extra_string=''):		#a short string that will be prefixed to the string descriptor of this suite. used to help name results file
 		
 
 		self.wirelength = wirelength
-		#self.input_equiv = input_equiv
-		#self.output_equiv = output_equiv
 		
 		if switchblock != 'wilton' and switchblock != 'universal' and switchblock != 'subset':
 			print('unrecognized switchblock: ' + switchblock)
@@ -88,7 +83,6 @@ class Wotan_Test_Suite:
 		self.plot_index = plot_index
 
 		self.wotan_opts = wotan_opts
-		self.vpr_opts = vpr_opts
 
 		self.extra_descriptor_str = extra_string
 
@@ -862,7 +856,6 @@ class Wotan_Tester:
 	def run_architecture_comparisons(self, arch_pairs_list, 
 	                                 results_file, 
 					 wotan_opts, 
-					 vpr_opts_for_wotan, 
 	                                 compare_against_VPR=False):	#if enabled, a VPR comparison will also be run for each architecture pair (to verify Wotan metrics)
 
 
@@ -885,6 +878,9 @@ class Wotan_Tester:
 				print('expected two entries in arch pair, got ' + str(len(arch_pair)))
 				sys.exit()
 			
+			arch1_vpr_opts = arch_pair[0].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
+			arch2_vpr_opts = arch_pair[1].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
+
 			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
 			self.make_wotan()
 			self.make_vpr()
@@ -894,12 +890,12 @@ class Wotan_Tester:
 
 			#get pin demand / routability based on first architecture as reference
 			(arch0_metric, arch1_metric) = self.wotan_arch_metrics_with_first_as_reference(arch_pair[0], arch_pair[1], target_prob,
-										       target_tolerance, target_regex, wotan_opts, vpr_opts_for_wotan)
+										       target_tolerance, target_regex, wotan_opts, arch1_vpr_opts)
 
 			#if second architecture has a lower metric, then rerun above test with pin demand based on second arch as reference
 			if (arch1_metric < arch0_metric):
 				(arch1_metric, arch0_metric) = self.wotan_arch_metrics_with_first_as_reference(arch_pair[1], arch_pair[0], target_prob,
-											       target_tolerance, target_regex, wotan_opts, vpr_opts_for_wotan)
+											       target_tolerance, target_regex, wotan_opts, arch2_vpr_opts)
 
 				if (arch0_metric < arch1_metric):
 					print('WARNING: arch1 was worse with arch0 as reference. but now arch0 is worse when arch1 was chosen as reference? inconsistency??')
@@ -1278,7 +1274,6 @@ def make_test_group(num_suites,			#number of wotan test suites that are to be in
 		    output_label_list,		#what human-readable labels should be assigned to above regexed values? -- common to all test suites
 		    plot_index,			#index (in above regex/label lists) that should be plotted on a graph -- common to all test suites
 		    wotan_opts,			#options to run wotan with -- common to all test suites
-		    vpr_opts			#options to run vpr with -- common to all test suites
                     ):
 
 	test_group = []
@@ -1295,8 +1290,7 @@ def make_test_group(num_suites,			#number of wotan test suites that are to be in
 					      output_regex_list = output_regex_list,
 					      output_label_list = output_label_list,
 					      plot_index = plot_index,
-					      wotan_opts = wotan_opts,
-					      vpr_opts = vpr_opts
+					      wotan_opts = wotan_opts
 		                             )
 
 		test_group += [test_suite]
