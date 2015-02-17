@@ -8,15 +8,23 @@ base_path = "/home/oleg/Documents/work/UofT/Grad"
 vtr_path = base_path + "/vtr-verilog-to-routing"
 wotan_path = base_path + "/my_vtr/wotan"
 
-arch_dir = vtr_path + '/vtr_flow/arch/timing'
+#arch_dir = vtr_path + '/vtr_flow/arch/timing'
+arch_dir = wotan_path + '/arch'
 
 
 ############ Architectures ############
-wotan_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb.xml',
-               '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb_lattice.xml'}
+#wotan_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb.xml',
+#               '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb_lattice.xml'}
+#
+#vpr_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test.xml',
+#             '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test_lattice.xml'}
 
-vpr_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test.xml',
-             '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test_lattice.xml'}
+
+wotan_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm_only_clb.xml',
+               '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv_only_clb.xml'}
+
+vpr_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
+             '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv_only_clb.xml'}
 
 arch_dictionaries = wt.Archs(wotan_archs, vpr_archs)
 
@@ -145,7 +153,84 @@ test_suites += [wt.make_test_group(num_suites=3,
 
 
 ########### LATTICE-LIKE ARCHITECTURES ############
-
+#lattice 4lut -- fcout sweep with wilton and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['wilton'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcout',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
+#lattice 4lut -- fcin sweep with wilton and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['wilton'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcin',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
+#lattice 4lut -- fcout sweep with universal and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['universal'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcout',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
+#lattice 4lut -- fcin sweep with universal and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['universal'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcin',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
+#lattice 4lut -- fcout sweep with planar and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['subset'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcout',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
+#lattice 4lut -- fcin sweep with planar and input equivalence
+test_suites += [wt.make_test_group(num_suites=3,
+                                  wirelengths=[1,2,4],
+				  switchblocks=['subset'],
+				  arch_names=['4LUT-noequiv'],
+				  arch_dictionaries=arch_dictionaries,
+				  sweep_type='fcin',
+				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
+				  output_regex_list=regex_Rel,
+				  output_label_list=labels_Rel,
+				  plot_index=plot_index,
+				  wotan_opts=wotan_opts
+				 )]
 
 
 ############ Run Tests ############
