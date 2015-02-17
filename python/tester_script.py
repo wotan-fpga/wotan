@@ -10,9 +10,6 @@ wotan_path = base_path + "/wotan"
 
 arch_dir = vtr_path + '/vtr_flow/arch/timing'
 
-wotan_arch = "k6_frac_N10_mem32K_40nm_only_clb.xml"
-vpr_arch = "k6_frac_N10_mem32K_40nm_test.xml"
-
 
 ############ Architectures ############
 wotan_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb.xml',
@@ -50,7 +47,8 @@ regex_Rel = (
 
 
 ############ Wotan/VPR command line arguments ############
-vpr_opts = vtr_path + '/vtr_flow/arch/timing/' + wotan_arch + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
+#TODO: vpr options should now be derived from test suite or arch point
+#vpr_opts = vtr_path + '/vtr_flow/arch/timing/' + wotan_arch + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
 
 wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y'
 wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
@@ -77,8 +75,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with wilton and input equivalence
 test_suites += [wt.make_test_group(num_suites=3,
@@ -91,8 +88,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcout sweep with universal and input equivalence
 test_suites += [wt.make_test_group(num_suites=3,
@@ -105,8 +101,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with universal and input equivalence
 test_suites += [wt.make_test_group(num_suites=3,
@@ -119,8 +114,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcout sweep with planar and input equivalence
 test_suites += [wt.make_test_group(num_suites=3,
@@ -133,8 +127,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with planar and input equivalence
 test_suites += [wt.make_test_group(num_suites=3,
@@ -147,8 +140,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  output_regex_list=regex_Rel,
 				  output_label_list=labels_Rel,
 				  plot_index=plot_index,
-				  wotan_opts=wotan_opts,
-				  vpr_opts=vpr_opts
+				  wotan_opts=wotan_opts
 				 )]
 
 
@@ -171,7 +163,7 @@ tester = wt.Wotan_Tester(
 results_file = wotan_path + '/python/pair_test.txt'
 arch_pairs_list = tester.make_random_arch_pairs_list(60)
 #arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
-tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts, vpr_opts,
+tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
                                     compare_against_VPR=True)
 
 #for pair in arch_pairs_list:
