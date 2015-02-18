@@ -265,7 +265,8 @@ class Wotan_Tester:
 	#replaces wirelength in the architecture with the specified length. switch population is full
 	def replace_arch_wirelength(self, arch_path, new_wirelength):
 		#regex for old lines
-		segment_regex = '<segment freq="\d\.\d*" length="\d+" type="unidir" Rmetal="101" Cmetal="22.5e-15">'
+		#segment_regex = '<segment freq="\d\.\d*" length="\d+" type="unidir" Rmetal="101" Cmetal="22.5e-15">'	#TODO: this changes for 22nm arch
+		segment_regex = '<segment freq="\d\.\d*" length="\d+" type="unidir" Rmetal="0.0" Cmetal="0.0">'	#TODO: this changes for 22nm arch
 		sb_type_regex = '<sb type="pattern">[1,\s]+</sb>'
 		cb_type_regex = '<cb type="pattern">[1,\s]+</cb>'
 
@@ -273,7 +274,8 @@ class Wotan_Tester:
 		new_sb_pattern = ('1 ' * (new_wirelength+1)).strip()
 		new_cb_pattern = ('1 ' * new_wirelength).strip()
 
-		new_segment = '<segment freq="1.0" length="' + str(new_wirelength) + '" type="unidir" Rmetal="101" Cmetal="22.5e-15">'
+		#new_segment = '<segment freq="1.0" length="' + str(new_wirelength) + '" type="unidir" Rmetal="101" Cmetal="22.5e-15">'
+		new_segment = '<segment freq="1.0" length="' + str(new_wirelength) + '" type="unidir" Rmetal="0.0" Cmetal="0.0">'
 		new_sb_type = '<sb type="pattern">' + new_sb_pattern + '</sb>'
 		new_cb_type = '<cb type="pattern">' + new_cb_pattern + '</cb>'
 
@@ -464,8 +466,6 @@ class Wotan_Tester:
 		benchmark_list = bm_info.benchmark_list
 		regex_list = bm_info.regex_list
 
-		ind = benchmark_list.index(benchmark)
-		print('\t\tbenchmark ' + str(ind))
 		output_list = []
 		
 		try:
@@ -479,10 +479,12 @@ class Wotan_Tester:
 
 		#parse outputs according to user's regex list
 		for regex in regex_list:
-			ind = regex_list.index(regex)
+			#ind = regex_list.index(regex)
 			parsed = float( regex_last_token(vpr_out, regex) )
 			output_list += [parsed]
 
+		ind = benchmark_list.index(benchmark)
+		print('\t\tbenchmark ' + str(ind) + ' done')
 		return output_list
 
 
@@ -892,12 +894,12 @@ class Wotan_Tester:
 
 			#get pin demand / routability based on first architecture as reference
 			(arch0_metric, arch1_metric) = self.wotan_arch_metrics_with_first_as_reference(arch_pair[0], arch_pair[1], target_prob,
-										       target_tolerance, target_regex, wotan_opts, arch1_vpr_opts)
+										       target_tolerance, target_regex, wotan_opts, arch1_vpr_opts, arch2_vpr_opts)
 
 			#if second architecture has a lower metric, then rerun above test with pin demand based on second arch as reference
 			if (arch1_metric < arch0_metric):
 				(arch1_metric, arch0_metric) = self.wotan_arch_metrics_with_first_as_reference(arch_pair[1], arch_pair[0], target_prob,
-											       target_tolerance, target_regex, wotan_opts, arch2_vpr_opts)
+											       target_tolerance, target_regex, wotan_opts, arch2_vpr_opts, arch1_vpr_opts)
 
 				if (arch0_metric < arch1_metric):
 					print('WARNING: arch1 was worse with arch0 as reference. but now arch0 is worse when arch1 was chosen as reference? inconsistency??')
@@ -960,7 +962,7 @@ class Wotan_Tester:
 	#pin demand is calculated based on the first architecture (and the target/target_tolerance values) using a binary search.
 	#metric values for the two architectures are returned based on the aforementioned pin demand 
 	def wotan_arch_metrics_with_first_as_reference(self, arch_point1, arch_point2, target, target_tolerance, target_regex,
-	                                               wotan_opts, vpr_opts):
+	                                               wotan_opts, vpr_opts_arch1, vpr_opts_arch2):
 	
 		arch1_metric = None
 		arch2_metric = None
@@ -970,7 +972,7 @@ class Wotan_Tester:
 
 		#get pin demand / routability based on first architecture
 		self.update_arch_based_on_arch_point(path_arch1, arch_point1)
-		self.run_vpr( vpr_opts )
+		self.run_vpr( vpr_opts_arch1 )
 		(arch1_metric, pin_demand, arch1_output) = self.search_for_wotan_pin_demand(wotan_opts = wotan_opts,
 											  test_type = self.test_type,
 											  target = target,
@@ -979,7 +981,7 @@ class Wotan_Tester:
 
 		#now get the routability of the second architecture
 		self.update_arch_based_on_arch_point(path_arch2, arch_point2)
-		self.run_vpr( vpr_opts )
+		self.run_vpr( vpr_opts_arch2 )
 		arch2_output = self.run_wotan( wotan_opts + ' -opin_demand ' + str(pin_demand) )
 		arch2_metric = float( regex_last_token(arch2_output, target_regex) )
 
@@ -1312,7 +1314,8 @@ def my_custom_arch_pair_list(arch_dictionaries):
 	############ Easy ############
 	#string_pairs += [['len1_in-eq_wilton_fcin0.45_fcout0.1', 'len1_in-eq_wilton_fcin0.15_fcout0.1']]
 	#string_pairs += [['len4_in-eq_wilton_fcin0.5_fcout0.1', 'len2_in-eq_wilton_fcin0.5_fcout0.1']]
-	string_pairs += [['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv', 'len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']]
+	#string_pairs += [['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv', 'len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']]
+	string_pairs += [['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv', 'len2_wilton_fcin0.15_fcout0.45_arch:4LUT-noequiv']]
 
 	############ Moderate ############
 
