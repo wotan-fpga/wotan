@@ -24,7 +24,7 @@ wotan_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm_onl
                '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv_only_clb.xml'}
 
 vpr_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
-             '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv_only_clb.xml'}
+             '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv.xml'}
 
 arch_dictionaries = wt.Archs(wotan_archs, vpr_archs)
 
@@ -68,12 +68,13 @@ wotan_opts = wotan_opts_normal
 test_type = 'binary_search_pessimistic_prob'
 plot_index = 5			#into into labels_Rel/regex_Rel -- this value will be plotted on a graph
 
-############ Test Suites ############
-test_suites = []
+
 
 ########### ALTERA-LIKE ARCHITECTURES ############
+test_suites_6lut = []
+
 #altera 6LUT -- fcout sweep with wilton and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['wilton'],
 				  arch_names=['6LUT-iequiv'],
@@ -86,7 +87,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with wilton and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['wilton'],
 				  arch_names=['6LUT-iequiv'],
@@ -99,7 +100,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcout sweep with universal and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['universal'],
 				  arch_names=['6LUT-iequiv'],
@@ -112,7 +113,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with universal and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['universal'],
 				  arch_names=['6LUT-iequiv'],
@@ -125,7 +126,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcout sweep with planar and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['subset'],
 				  arch_names=['6LUT-iequiv'],
@@ -138,7 +139,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #altera 6LUT -- fcin sweep with planar and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_6lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['subset'],
 				  arch_names=['6LUT-iequiv'],
@@ -153,8 +154,10 @@ test_suites += [wt.make_test_group(num_suites=3,
 
 
 ########### LATTICE-LIKE ARCHITECTURES ############
+test_suites_4lut = []
+
 #lattice 4lut -- fcout sweep with wilton and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['wilton'],
 				  arch_names=['4LUT-noequiv'],
@@ -167,7 +170,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #lattice 4lut -- fcin sweep with wilton and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['wilton'],
 				  arch_names=['4LUT-noequiv'],
@@ -180,7 +183,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #lattice 4lut -- fcout sweep with universal and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['universal'],
 				  arch_names=['4LUT-noequiv'],
@@ -193,7 +196,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #lattice 4lut -- fcin sweep with universal and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['universal'],
 				  arch_names=['4LUT-noequiv'],
@@ -206,7 +209,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #lattice 4lut -- fcout sweep with planar and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['subset'],
 				  arch_names=['4LUT-noequiv'],
@@ -219,7 +222,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 #lattice 4lut -- fcin sweep with planar and input equivalence
-test_suites += [wt.make_test_group(num_suites=3,
+test_suites_4lut += [wt.make_test_group(num_suites=3,
                                   wirelengths=[1,2,4],
 				  switchblocks=['subset'],
 				  arch_names=['4LUT-noequiv'],
@@ -232,6 +235,7 @@ test_suites += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 
+test_suites = test_suites_6lut + test_suites_4lut
 
 ############ Run Tests ############
 start_time = time.time()
@@ -246,8 +250,8 @@ tester = wt.Wotan_Tester(
 #tester.run_all_tests_sequentially()
 
 results_file = wotan_path + '/python/pair_test.txt'
-#arch_pairs_list = tester.make_random_arch_pairs_list(60)
-arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
+arch_pairs_list = tester.make_random_arch_pairs_list(40)
+#arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
 tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
                                     compare_against_VPR=True)
 
