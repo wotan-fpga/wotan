@@ -468,8 +468,8 @@ class Wotan_Tester:
 
 		output_list = []
 		
+		vpr_opts = vpr_arch + ' ' + benchmark + ' ' + vpr_base_opts
 		try:
-			vpr_opts = vpr_arch + ' ' + benchmark + ' ' + vpr_base_opts
 			vpr_out = self.run_vpr(vpr_opts)
 		except KeyboardInterrupt:
 			#dealing with python 2.7 compatibility stupidness... i can't get multiprocessing to terminate on "ctrl-c"
@@ -484,7 +484,8 @@ class Wotan_Tester:
 			output_list += [parsed]
 
 		ind = benchmark_list.index(benchmark)
-		print('\t\tbenchmark ' + str(ind) + ' done')
+		print('\t\tbenchmark: ' + str(ind) + ' done')
+		#print('\t\t\tvpr opts: ' + vpr_opts)
 		return output_list
 
 
@@ -529,7 +530,7 @@ class Wotan_Tester:
 				target_tolerance = None,
 				target_regex = None,
 				pin_demand_low = 0.01,
-				pin_demand_high = 5.0,
+				pin_demand_high = 10.0,
 				max_tries = 15):
 		
 		if '-opin_demand' in wotan_opts:
@@ -1315,7 +1316,8 @@ def my_custom_arch_pair_list(arch_dictionaries):
 	#string_pairs += [['len1_in-eq_wilton_fcin0.45_fcout0.1', 'len1_in-eq_wilton_fcin0.15_fcout0.1']]
 	#string_pairs += [['len4_in-eq_wilton_fcin0.5_fcout0.1', 'len2_in-eq_wilton_fcin0.5_fcout0.1']]
 	#string_pairs += [['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv', 'len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']]
-	string_pairs += [['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv', 'len2_wilton_fcin0.15_fcout0.45_arch:4LUT-noequiv']]
+	#string_pairs += [['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv', 'len2_wilton_fcin0.15_fcout0.45_arch:4LUT-noequiv']]
+	string_pairs += [['len4_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv', 'len1_planar_fcin0.25_fcout0.1_arch:4LUT-noequiv']]
 
 	############ Moderate ############
 
