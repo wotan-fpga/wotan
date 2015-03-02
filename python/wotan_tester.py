@@ -93,6 +93,15 @@ class Wotan_Test_Suite:
 		self.arch_name = arch_name
 
 
+	#returns path to VPR architecture file used for Wotan tests
+	def get_wotan_arch_path(self):
+		return self.arch_dictionaries.wotan_archs[ self.arch_name ]
+
+	#returns path to VPR architecture file used for VPR tests
+	def get_vpr_arch_path(self):
+		return self.arch_dictionaries.vpr_archs[ self.arch_name ]
+
+
 	#returns a brief string specifying wirelength -- useful for annotating graphs and naming files
 	def wirelength_str(self):
 		result = 'len' + str(self.wirelength)
@@ -508,20 +517,6 @@ class Wotan_Tester:
 		output = str(self.run_command("./wotan", arg_list))
 		return output
 
-	#commenting out -- opin_demand option now available from wotan's command line
-	#replaces 'opin_probability' in wotan's 'wotan_types.cxx' file with the specified value
-	#def replace_wotan_pin_demand(self, new_pin_demand):
-	#	target_file = self.wotan_path + '/SRC/base/wotan_types.cxx'
-
-	#	if new_pin_demand < 0:
-	#		print('requested pin demand < 0')
-	#	
-	#	opin_probability_regex = '\tthis->opin_probability = \d*\.*\d*;'
-	#	new_line = '\tthis->opin_probability = ' + str(new_pin_demand) + ';'
-
-	#	#replace the target line
-	#	self.replace_pattern_in_file( opin_probability_regex, new_line, target_file )
-
 
 	#performs binary search to adjust pin demand in wotan until the target metric is equal to the desired value within some tolerance.
 	#returns 3-tuple: (final target value, final pin demand, wotan output)
@@ -551,9 +546,9 @@ class Wotan_Tester:
 			if not target_regex:
 				target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 			if not target:
-				target = 30
+				target = 0.3
 			if not target_tolerance:
-				target_tolerance = 0.2
+				target_tolerance = 0.02
 			monotonic_increasing = False
 		else:
 			print('unexpected test_type passed-in to binary search: ' + test_type)
@@ -569,8 +564,8 @@ class Wotan_Tester:
 		while abs(current - target) > target_tolerance:
 			if try_num > max_tries:
 				if current < target:
-					#the architecture is probably very unroutable and it simply can't get its routability
-					#up to 'target' (this tends to happen with some planar out-equiv architectures)
+					#the architecture is probably very unroutable and it simply can't get to the specified target value
+					print('\t\tarchitecture looks too unroutable; can\'t meet binary search target of ' + str(target) + '. Returning.')
 					break
 				else:
 					print('has taken more than ' + str(max_tries) + ' tries to binary search for correct pin demand. terminating...')
@@ -626,7 +621,6 @@ class Wotan_Tester:
 	#replaces parameters in VPR architecture file according to the given Arch_Point_Info object.
 	def update_arch_based_on_arch_point(self, arch_path, arch_point_info, fcs_to_replace='clb'):
 		self.replace_arch_wirelength( arch_path, arch_point_info.wirelength )
-		#self.replace_arch_pin_equiv( arch_path, arch_point_info.input_equiv, arch_point_info.output_equiv )	#TODO. comment this out?
 		self.replace_arch_switchblock( arch_path, arch_point_info.switchblock )
 
 		count = 0
@@ -653,17 +647,19 @@ class Wotan_Tester:
 
 		run = 1
 		for test_suite_list in self.test_suite_2dlist:
+			#Run a group of test suites together -- their results will be plotted on the same graph
+
 			print('run ' + str(run) + ' out of ' + str(len(self.test_suite_2dlist)))
 
 
 			############ Setup ############
 
-			#a list of attributes that is different between this list of test suites
+			#a list of attributes that is different inside this group of test suites -- used for labelling on graphs
 			differing_attributes = test_suite_differing_attributes( test_suite_list )
 			
 			#generate trace labels for each test suite. also check that all test suites sweep same variable & plot same variable & sweep range is the same
 			trace_labels = []
-			sweep_variable = test_suite_list[0].sweep_type
+			sweep_variable = test_suite_list[0].sweep_type	#sweeping fcin or fcout
 			sweep_range = test_suite_list[0].sweep_range
 			plot_index = test_suite_list[0].plot_index
 			for suite in test_suite_list:
@@ -682,7 +678,7 @@ class Wotan_Tester:
 			############ Run Tests ############
 			results = []
 			for suite in test_suite_list:
-				results.append( self.run_test_suite(suite, results_folder) )	#run_test_suite automatically writes data to files
+				results.append( self.run_test_suite(suite, results_folder) )	#run_test_suite, automatically writes data to files
 
 
 
@@ -731,8 +727,7 @@ class Wotan_Tester:
 
 		#setup a results structure -- a list of lists
 		#set up the labels first
-		results = []
-		results.append([])
+		results = [[]]
 		results[0] += [ test_suite.sweep_type ]		#this is the swept variable (i.e. fcin/fcout) at which wotan outputs are tested and recorded
 		for label in test_suite.output_label_list:
 			results[0] += [ label ]
@@ -741,15 +736,17 @@ class Wotan_Tester:
 		#run tests
 		run = 1
 		for metric in test_suite.sweep_range:
-			results.append([])
+			results += [[]]
 
 			print('\trun ' + str(run))
 
 			#update architecture file
-			self.update_arch_based_on_test_suite(self.wotan_arch_path, test_suite, metric)
+			wotan_arch_path = test_suite.get_wotan_arch_path()
+			self.update_arch_based_on_test_suite(wotan_arch_path, test_suite, metric)
 
 			#rebuild vpr graph
-			self.run_vpr( test_suite.vpr_opts )
+			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			self.run_vpr( vpr_opts )
 
 			#run wotan
 			wotan_output = None
@@ -757,8 +754,36 @@ class Wotan_Tester:
 			if self.test_type == 'normal':
 				wotan_output = self.run_wotan( test_suite.wotan_opts )
 			elif 'binary_search_' in self.test_type:
-				(tmp, pin_demand, wotan_output) = self.search_for_wotan_pin_demand(test_suite.wotan_opts, self.test_type)
-				print('\t\tpin demand: ' + str(pin_demand))
+				#run a binary search algorithm to adjust wotan's opin demand according to the 
+				#specified target value and tolerance.
+				target_value = 0
+				target_tolerace = 0
+				max_tries = 15
+
+				if self.test_type == 'binary_search_pessimistic_prob':
+					#searching for a specific value of the 'pessimistic prob' metric
+					target_value = 0.3
+					target_tolerance = 0.005
+					max_tries = 20
+				elif self.test_type == 'binary_search_total_prob':
+					#searching for a specific value of the 'total prob' metric
+					#TODO
+					pass
+				elif self.test_type == 'binary_search_norm_demand':
+					#sesarch for a specific value of the 'normalized demand' metric
+					#TODO
+					pass
+				else:
+					#no idea what we're searching for
+					print('unexpected binary search type: ' + self.test_type)
+					sys.exit()
+					
+
+				#run binary search
+				(final_target_val, pin_demand, wotan_output) = self.search_for_wotan_pin_demand(test_suite.wotan_opts, self.test_type,
+				                                                                            target = target_value,
+				                                                                            target_tolerance = target_tolerance,
+													    max_tries = max_tries)
 			else:
 				print('unrecognized test type: ' + self.test_type)
 				sys.exit()
@@ -767,17 +792,17 @@ class Wotan_Tester:
 			results[run] += [ str(metric) ]
 			for regex in test_suite.output_regex_list:
 				regexed_result = regex_last_token(wotan_output, regex)
-				if self.test_type == 'binary_search_norm_demand' and regex == test_suite.output_regex_list[ test_suite.plot_index ]:
-					#normalize result by pin demand
-					print('\t\tprobability: ' + regexed_result)
-					regexed_result = str( float(regexed_result) * pin_demand )
-					print('\t\tadjusted probability: ' + regexed_result)
+				#if self.test_type == 'binary_search_norm_demand' and regex == test_suite.output_regex_list[ test_suite.plot_index ]:
+				#	#normalize result by pin demand
+				#	print('\t\tprobability: ' + regexed_result)
+				#	regexed_result = str( float(regexed_result) * pin_demand )
+				#	print('\t\tadjusted probability: ' + regexed_result)
 
-					#TODO: make a separate column for the plot result; modify it if doing some kind of binary search
-					#TODO: in tester script, automatically choose plot_index based on the test type (i.e. binary_search_prob should be looking at pin demand)
+				#	#TODO: make a separate column for the plot result; modify it if doing some kind of binary search
+				#	#TODO: in tester script, automatically choose plot_index based on the test type (i.e. binary_search_prob should be looking at pin demand)
 
-					#TODO: I am testing at same-W architecture. Fundamentally, this is different from what VPR does. Data to 'estimate' channel width
-					#	would be kind of nice
+				#	#TODO: I am testing at same-W architecture. Fundamentally, this is different from what VPR does. Data to 'estimate' channel width
+				#	#	would be kind of nice
 				results[run] += [ regexed_result ]
 
 			run += 1
@@ -988,6 +1013,45 @@ class Wotan_Tester:
 
 		print (arch1_metric, arch2_metric)
 		return (arch1_metric, arch2_metric)
+
+
+	#returns list of wotan scores for a single architecture over the specified
+	#range of channel widths
+	def sweep_architecture_over_W(self, arch_point, w_range):
+		result_list = []
+		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
+
+
+		
+		arch_path = arch_point.get_wotan_arch_path()
+
+		#get pin demand / routability based on first architecture
+		self.update_arch_based_on_arch_point(arch_path, arch_point)
+
+		#build wotan and vpr
+		self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
+		self.make_vpr()
+		self.make_wotan()
+		
+		#use wotan to evaluate the architecture point at each channel width
+		wotan_opts = '-rr_structs_file ' + self.vtr_path + '/vpr/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y' + \
+			     ' -opin_demand 1.5'
+		for chan_width in w_range:
+			
+			#run vpr at specified channel width to build the rr graph
+			vpr_opts = arch_point.get_wotan_arch_path() + ' ' + self.vtr_path + '/vtr_flow/benchmarks/blif/alu4.blif -nodisp -route_chan_width ' + str(chan_width)
+			vpr_out = self.run_vpr(vpr_opts)	#eventually it would be interesting to see how many benchmarks also route at this channel width
+			
+			#rr graph is built, run wotan
+			wotan_out = self.run_wotan(wotan_opts)
+			wotan_score = float( regex_last_token(wotan_out, target_regex) )
+
+			print('W=' + str(chan_width) + '  score=' + str(wotan_score))
+
+			result_list += [wotan_score]
+
+		return result_list
+				
 
 
 #Contains dictionaries of architectures that can be used for Wotan and VPR 
@@ -1261,6 +1325,8 @@ def get_geomean(my_list):
 		result *= num
 	result **= (1.0/len(my_list))
 	return result
+
+
 
 
 #creates a group of wotan test suites based on the specified options.
