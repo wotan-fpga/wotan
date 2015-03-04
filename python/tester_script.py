@@ -261,8 +261,7 @@ results_file = wotan_path + '/python/pair_test.txt'
 #tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
 #                                    compare_against_VPR=True)
 
-arch_list = tester.make_random_arch_list(4)
-print(arch_list)
+arch_list = tester.make_random_arch_list(60)
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   compare_against_VPR=True)
