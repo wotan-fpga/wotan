@@ -1063,7 +1063,7 @@ class Wotan_Tester:
 		return result_list
 				
 	
-	#valuates each architecture point in the specified list (optionally runs VPR on this list as well).
+	#evaluates routability of each architecture point in the specified list (optionally runs VPR on this list as well).
 	#results are written in table form to the specified file
 	#	wotan results are sorted best to worst
 	#	VPR results, if enabled, are sorter best to worst (in terms on channel width)
@@ -1142,8 +1142,6 @@ class Wotan_Tester:
 		#sort results -- descending for wotan, ascending for vpr
 		wotan_results.sort(key=lambda x: x[2], reverse=True)
 		vpr_results.sort(key=lambda x: x[2])
-		print(wotan_results)	#XXX
-		print(vpr_results)
 
 		if compare_against_VPR:
 			#figure out how many pairwise comparisons of wotan agree with VPR
@@ -1173,8 +1171,6 @@ class Wotan_Tester:
 					j += 1
 				i += 1
 
-		print(str(agree_cases) + ' out of ' + str(total_comparisons))	#XXX
-
 		#print results to a file
 		with open(results_file, 'w+') as f:
 			for w_result in wotan_results:
@@ -1191,15 +1187,6 @@ class Wotan_Tester:
 			if compare_against_VPR:
 				f.write('\n')
 				f.write('Wotan and VPR agree in ' + str(agree_cases) + '/' + str(total_comparisons) + ' pairwise comparisons\n')
-
-#TODO:
-#- sort results
-#	- wotan in descending order
-#	- vpr in ascending order
-#
-#- figure out how many pairwise comparisons wotan got right
-				
-
 
 
 #Contains dictionaries of architectures that can be used for Wotan and VPR 
