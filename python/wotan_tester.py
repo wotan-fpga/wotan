@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy_reg
 import types
+import sympy
 
 ###### Enums ######
 e_Test_Type = ('normal',
@@ -422,11 +423,41 @@ class Wotan_Tester:
 		return benchmarks
 
 
+	#runs provided list of benchmarks and returns outputs (based on regex_list) averaged over the specified list of seeds.
+	#this function basically calls 'run_vpr_benchmarks' for each seed in the list
+	def run_vpr_benchmarks_multiple_seeds(self, benchmark_list,
+	                                      regex_list, vpr_arch,
+					      vpr_seed_list = [1],	#by default run with single seed
+					      num_threads = 1):		#by default run with 1 thread
+		result_table = []
+
+		#run vpr benchmarks for each specified seed
+		for seed in vpr_seed_list:
+			print('SEED ' + str(seed) + ' of ' + str(len(vpr_seed_list)))
+			seed_result = self.run_vpr_benchmarks(benchmark_list, regex_list, vpr_arch,
+			                                      seed, num_threads = num_threads)
+
+			result_table += [seed_result]
+
+		#take average of all results
+		result_table = np.array(result_table)
+
+		avg_results = []
+		for column in result_table.T:
+			column_avg = sum(column) / float(len(column))
+			avg_results += [column_avg]
+
+		return avg_results
+
+
 	#runs provided list of benchmarks and returns geomean outputs based on the provided list of regular expressions
 	def run_vpr_benchmarks(self, benchmark_list, 
 	                       regex_list, vpr_arch, 
-			       vpr_base_opts, 
-			       num_threads=1):		#number of concurrent VPR executables to run
+			       vpr_seed = 1,			#default seed of 1
+			       num_threads = 1):		#number of concurrent VPR executables to run
+
+		#VPR should be run with the -nodisp option and some seed
+		vpr_base_opts = '-nodisp --seed ' + str(vpr_seed)
 
 		#make 2-d list into which results of each benchmark run will go
 		outputs = []
@@ -867,7 +898,17 @@ class Wotan_Tester:
 	
 	#returns a list where every entry is a 2-tuple of different architecture points. each entry in the list will be unique
 	def make_random_arch_pairs_list(self, num_pairs):
+		
+		#error check -- make sure we can actually create a list of requested size
+		num_arch_points = len(self.arch_point_list)
+		max_possible_size = sympy.binomial(num_arch_points, 2)
+		if num_pairs > max_possible_size:
+			print('Cannot create list of random arch pairs of size ' + str(num_pairs) + '. Max possible size: ' + str(max_possible_size))
+			sys.exit() 
+
+
 		arch_pairs_list = []
+
 		i = 0
 		while i < num_pairs:
 			arch_pair = self.get_random_arch_point_pair()
@@ -884,7 +925,11 @@ class Wotan_Tester:
 	#makes an arch list through a call to 'make_random_arch_pairs_list' so 'num_archs' must currently be even (i'm lazy)
 	def make_random_arch_list(self, num_archs):
 
+		#error check -- make sure we can actually create a list of requested size
 		num_arch_points = len(self.arch_point_list)
+		if num_archs > num_arch_points:
+			print('Cannot create list of random archs of size ' + str(num_archs) + '. Max possible size: ' + str(num_arch_points))
+			sys.exit()
 
 		arch_list = []
 		i = 0
@@ -959,7 +1004,6 @@ class Wotan_Tester:
 			if compare_against_VPR:
 				vpr_regex_list = ['channel width factor of (\d+)']
 				benchmarks = self.get_mcnc_benchmarks()
-				vpr_base_opts = '-nodisp'
 
 				#Run the architecture comparison using VPR
 				vpr_results = []
@@ -968,7 +1012,9 @@ class Wotan_Tester:
 					vpr_arch_path = arch_pair[ind].get_vpr_arch_path()
 					self.update_arch_based_on_arch_point(vpr_arch_path, arch_pair[ind], fcs_to_replace='clb' )
 
-					results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, vpr_arch_path, vpr_base_opts, num_threads=7)
+					results = self.run_vpr_benchmarks_multiple_seeds(benchmarks, vpr_regex_list, vpr_arch_path,
+					                                                 vpr_seed_list = [1],
+											 num_threads = 7)
 					vpr_results += [results[0]]
 
 				#Which architecture won according to VPR? Does that match with Wotan's prediction?
@@ -1130,13 +1176,14 @@ class Wotan_Tester:
 				#what regex / benchmarks to run?
 				vpr_regex_list = ['channel width factor of (\d+)']
 				benchmarks = self.get_mcnc_benchmarks()
-				vpr_base_opts = '-nodisp'
 
 				#run VPR and get regex results
 				vpr_arch_path = arch_point.get_vpr_arch_path()
 				self.update_arch_based_on_arch_point(vpr_arch_path, arch_point)
 
-				results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, vpr_arch_path, vpr_base_opts, num_threads=7)
+				results = self.run_vpr_benchmarks_multiple_seeds(benchmarks, vpr_regex_list, vpr_arch_path,
+										 vpr_seed_list = [1,2],			#run VPR over four seeds
+										 num_threads = 7)
 
 				#add VPR result to running list
 				vpr_result_entry = [arch_point_index, arch_point.as_str(), results[0]]
@@ -1524,8 +1571,6 @@ def make_test_group(num_suites,			#number of wotan test suites that are to be in
 #returns a hard-coded list of Arch_Point_Info pairs
 def my_custom_arch_pair_list(arch_dictionaries):
 
-	#format: 'len1_in-eq_out-eq_wilton_fcin0.25_fcout_0.5'
-
 	arch_pairs = []
 	string_pairs = []
 
@@ -1552,6 +1597,81 @@ def my_custom_arch_pair_list(arch_dictionaries):
 	return arch_pairs
 
 
+#returns a hard-coded list of Arch_Point_Info elements (use my_custom_arch_pair_list for pairwise comparisons)
+def my_custom_archs_list(arch_dictionaries):
+
+	arch_list = []
+	arch_strings = []
+
+
+	#a list of Altera-like 6LUT architecture points I got from a previous randomly-generated test
+	arch_strings += ['len1_planar_fcin0.15_fcout0.75_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']      
+	arch_strings += ['len1_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']		
+	arch_strings += ['len1_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv']    
+	arch_strings += ['len1_universal_fcin0.75_fcout0.1_arch:6LUT-iequiv']       
+	arch_strings += ['len1_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv']		
+	arch_strings += ['len1_wilton_fcin0.65_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len1_universal_fcin0.45_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len1_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_universal_fcin0.15_fcout0.25_arch:6LUT-iequiv']    
+	arch_strings += ['len1_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len2_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv']		
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.45_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv']    
+	arch_strings += ['len2_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']    
+	arch_strings += ['len2_universal_fcin0.15_fcout0.35_arch:6LUT-iequiv']    
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.75_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.65_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len1_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.25_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv']    
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len1_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len2_universal_fcin0.05_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len4_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.65_fcout0.1_arch:6LUT-iequiv']       
+	arch_strings += ['len4_wilton_fcin0.55_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_wilton_fcin0.35_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']      
+	arch_strings += ['len4_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv']       
+	arch_strings += ['len4_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv']    
+	arch_strings += ['len4_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.25_fcout0.1_arch:6LUT-iequiv']     
+	arch_strings += ['len4_wilton_fcin0.15_fcout0.15_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.15_fcout0.15_arch:6LUT-iequiv']		
+	arch_strings += ['len4_wilton_fcin0.25_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv']		
+	arch_strings += ['len4_universal_fcin0.15_fcout0.05_arch:6LUT-iequiv']    
+
+	#build a list of arch points based on the arch strings
+	for arch_str in arch_strings:
+		arch_point = Arch_Point_Info.from_str(arch_str, arch_dictionaries)
+		arch_list += [arch_point]
+
+	return arch_list
 
 
 ## evenly sampled time at 200ms intervals
