@@ -37,7 +37,7 @@ delays of memory and multipliers has not been scaled (discuss with Vaughn)
 				<x distr="uniform" peak="1.000000"/>
 				<y distr="uniform" peak="1.000000"/>
 			</chan_width_distr>
-			<switch_block type="universal" fs="3"/>
+			<switch_block type="wilton" fs="3"/>
 		</device>
 		<switchlist>
 			<switch type="mux" name="0" R="0.000000" Cin="0.000000e+00" Cout="0.000000e+00" Tdel="1.571509e-10" mux_trans_size="2.000000" buf_size="19.000000"/>
@@ -289,7 +289,7 @@ delays of memory and multipliers has not been scaled (discuss with Vaughn)
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-      <fc default_in_type="frac" default_in_val="0.15" default_out_type="frac" default_out_val="0.45"/>
+      <fc default_in_type="frac" default_in_val="0.45" default_out_type="frac" default_out_val="0.1"/>
 
       <pinlocations pattern="spread"/>
 

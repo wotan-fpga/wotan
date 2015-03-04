@@ -551,6 +551,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		cout << "Normalized squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
 	} else {
+		cout << "Opin demand: " << user_opts->opin_probability << endl;
+
 		/* print normalized probability results */
 		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
 		cout.setf(ios::fixed);

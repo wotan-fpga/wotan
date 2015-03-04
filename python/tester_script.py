@@ -34,12 +34,13 @@ arch_dictionaries = wt.Archs(wotan_archs, vpr_archs)
 ############ Wotan Labels and Regex Expressions ############
 #labels for regular Wotan output
 labels_Rel = (
-	'Fraction Enumerated',
-	'Total Demand',
-	'Normalized Demand',
-	'Normalized Square Demand',
-	'Total Prob',
-	'Pessimistic Prob'
+	'Fraction Enumerated',		#0
+	'Total Demand',			#1
+	'Normalized Demand',		#2
+	'Normalized Square Demand',	#3
+	'Demand multiplier',		#4
+	'Total Prob',			#5
+	'Pessimistic Prob'		#6
 )
 
 #regex for regular Wotan output
@@ -48,6 +49,7 @@ regex_Rel = (
 	'.*Total demand: (\d+\.*\d+).*',
 	'.*Normalized demand: (\d+\.\d+).*',
 	'.*Normalized squared demand: (\d+\.\d+).*',
+	'.*Opin demand: (\d*\.*\d+).*',
 	'.*Total prob: (\d+\.*\d+).*',
 	'.*Pessimistic prob: (\d+\.*\d*).*'
 )
@@ -55,18 +57,18 @@ regex_Rel = (
 
 
 ############ Wotan/VPR command line arguments ############
-#TODO: vpr options should now be derived from test suite or arch point
-#vpr_opts = vtr_path + '/vtr_flow/arch/timing/' + wotan_arch + ' ../vtr_flow/benchmarks/blif/wiremap6/alu4.pre-vpr.blif -route_chan_width 70 -nodisp'
-
+#VPR options are derived from test suite or arch point
 wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y'
 wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
 
 wotan_opts = wotan_opts_normal
 
-#test_type = wt.Test_Type.normal
+#Test type variable applies when 'run_all_tests_sequentially' is used. It is not used for 'run_architecture_comparisons' (which are hard-coded for a specific test type already)
 test_type = 'binary_search_pessimistic_prob'
-plot_index = 5			#into into labels_Rel/regex_Rel -- this value will be plotted on a graph
+
+#index into labels_Rel & regex_Rel that determines which regex'd value will be plotted on a graph
+plot_index = 4
 
 
 
@@ -235,7 +237,8 @@ test_suites_4lut += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 
-test_suites = test_suites_6lut + test_suites_4lut
+test_suites = test_suites_6lut #+ test_suites_4lut
+
 
 ############ Run Tests ############
 start_time = time.time()
@@ -247,16 +250,29 @@ tester = wt.Wotan_Tester(
 		test_type = test_type
 		)
 
+### Run test suites and plot groups of tests on the same graph
 #tester.run_all_tests_sequentially()
 
-results_file = wotan_path + '/python/pair_test.txt'
-arch_pairs_list = tester.make_random_arch_pairs_list(40)
-#arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
-tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
-                                    compare_against_VPR=True)
 
-#for pair in arch_pairs_list:
-#	print(str(pair[0]) + ' vs ' + str(pair[1]))
+### Run pairwise architecture comparisons
+results_file = wotan_path + '/python/pair_test.txt'
+#arch_pairs_list = tester.make_random_arch_pairs_list(40)
+#arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
+#tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
+#                                    compare_against_VPR=True)
+
+arch_list = tester.make_random_arch_list(4)
+print(arch_list)
+tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
+                                  wotan_opts,
+                                  compare_against_VPR=True)
+
+
+### Sweep on architecture over a range of channel widths
+#arch_point = wt.Arch_Point_Info.from_str('len1_wilton_fcin0.75_fcout0.25_arch:4LUT-noequiv', arch_dictionaries)
+##arch_point = wt.Arch_Point_Info.from_str('len2_universal_fcin0.15_fcout0.35_arch:4LUT-noequiv', arch_dictionaries)
+#chan_sweep_results = tester.sweep_architecture_over_W(arch_point, np.arange(60, 110, 2).tolist())
+#print(chan_sweep_results)
 
 end_time = time.time()
 print('Done. Took ' + str(round(end_time - start_time, 3)) + ' seconds')
