@@ -145,7 +145,7 @@ class Wotan_Test_Suite:
 		if self.extra_descriptor_str:
 			test_str += self.extra_descriptor_str + separator
 		test_str += self.wirelength_str() + separator + self.switchblock_str() + separator + \
-				self.sweep_type_str() + self.arch_name_str()
+				self.sweep_type_str() + separator + self.arch_name_str()
 		return test_str
 
 	#return string to describe a specific attribute
@@ -524,7 +524,7 @@ class Wotan_Tester:
 				target = None, 
 				target_tolerance = None,
 				target_regex = None,
-				pin_demand_low = 0.01,
+				pin_demand_low = 0.0,
 				pin_demand_high = 10.0,
 				max_tries = 15):
 		
@@ -867,7 +867,6 @@ class Wotan_Tester:
 	
 	#returns a list where every entry is a 2-tuple of different architecture points. each entry in the list will be unique
 	def make_random_arch_pairs_list(self, num_pairs):
-		
 		arch_pairs_list = []
 		i = 0
 		while i < num_pairs:
@@ -881,18 +880,29 @@ class Wotan_Tester:
 		return arch_pairs_list
 
 
+	#returns a list where each entry is a unique architecture point.
+	#makes an arch list through a call to 'make_random_arch_pairs_list' so 'num_archs' must currently be even (i'm lazy)
+	def make_random_arch_list(self, num_archs):
+		if (num_archs % 2) != 0:
+			print('make_random_arch_list expects num_archs to be even')
+			sys.exit()
+		 
+		arch_pairs_list = self.make_random_arch_pairs_list(num_archs/2)
+
+		arch_list = []
+		for arch_pair in arch_pairs_list:
+			arch_list += [arch_pair[0]]
+			arch_list += [arch_pair[1]]
+
+		return arch_list
+
+
 	#compares the architectures of each arch pair in the passed-in list against each other
 	#and writes a file with the results
 	def run_architecture_comparisons(self, arch_pairs_list, 
 	                                 results_file, 
 					 wotan_opts, 
 	                                 compare_against_VPR=False):	#if enabled, a VPR comparison will also be run for each architecture pair (to verify Wotan metrics)
-
-
-		if self.test_type != 'binary_search_pessimistic_prob':
-			print('Unexpected test type: ' + str(self.test_type))
-			sys.exit()
-
 
 		#would like to increase pin demand until ONE of the architectures hits the below probability.
 		#at that point the arch with the lower probability will be considered more routable
@@ -1052,6 +1062,144 @@ class Wotan_Tester:
 
 		return result_list
 				
+	
+	#valuates each architecture point in the specified list (optionally runs VPR on this list as well).
+	#results are written in table form to the specified file
+	#	wotan results are sorted best to worst
+	#	VPR results, if enabled, are sorter best to worst (in terms on channel width)
+	def evaluate_architecture_list(self, arch_list,
+	                                     results_file,
+					     wotan_opts,
+					     compare_against_VPR=False):
+
+		#specifies how architectures should be evaluated.
+		#binary search over pin demand until target prob is hit with specified tolerance
+		target_prob = 0.3
+		target_tolerance = 0.005
+		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
+
+		wotan_results = []
+		vpr_results = []
+
+		#for each architecture point:
+		#- evaluate with wotan 
+		#- evaluate with VPR if enabled
+		for arch_point in arch_list:
+			arch_point_index = arch_list.index(arch_point)
+			print('Run ' + str(arch_point_index+1) + '/' + str(len(arch_list)))
+
+
+			###### Use VPR to dump out the RR graph corresponding to this architecture ######
+			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
+			self.make_wotan()
+			self.make_vpr()
+
+			wotan_arch_path = arch_point.get_wotan_arch_path()
+			self.update_arch_based_on_arch_point(wotan_arch_path, arch_point)
+
+			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			self.run_vpr( vpr_opts )
+
+
+			###### Evaluate architecture with Wotan ######
+			#run binary search to find pin demand at which the target_regex hits its target value 
+			(target_val, pin_demand, wotan_out) = self.search_for_wotan_pin_demand(wotan_opts = wotan_opts,
+											       test_type = self.test_type,
+											       target = target_prob,
+											       target_tolerance = target_tolerance,
+											       target_regex = target_regex)
+
+			#get metric used for evaluating the architecture
+			metric_regex = '.*Opin demand: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+			metric_label = 'Demand Multiplier'
+
+			metric_value = float(regex_last_token(wotan_out, metric_regex))
+
+			#add metric to list of wotan results
+			wotan_result_entry = [arch_point_index, arch_point.as_str(), metric_value]
+			wotan_results += [wotan_result_entry]
+
+
+			###### Evaluate architecture with VPR ######
+			if compare_against_VPR:
+				#what regex / benchmarks to run?
+				vpr_regex_list = ['channel width factor of (\d+)']
+				benchmarks = self.get_mcnc_benchmarks()
+				vpr_base_opts = '-nodisp'
+
+				#run VPR and get regex results
+				vpr_arch_path = arch_point.get_vpr_arch_path()
+				self.update_arch_based_on_arch_point(vpr_arch_path, arch_point)
+
+				results = self.run_vpr_benchmarks(benchmarks, vpr_regex_list, vpr_arch_path, vpr_base_opts, num_threads=7)
+
+				#add VPR result to running list
+				vpr_result_entry = [arch_point_index, arch_point.as_str(), results[0]]
+				vpr_results += [vpr_result_entry]
+
+	
+		
+		#sort results -- descending for wotan, ascending for vpr
+		wotan_results.sort(key=lambda x: x[2], reverse=True)
+		vpr_results.sort(key=lambda x: x[2])
+		print(wotan_results)	#XXX
+		print(vpr_results)
+
+		if compare_against_VPR:
+			#figure out how many pairwise comparisons of wotan agree with VPR
+			# --> compare every architecture result to every other architecture result
+			total_comparisons = 0
+			agree_cases = 0
+			i = 0
+			while i < len(wotan_results)-1:
+				j = i+1
+				while j < len(wotan_results):
+					wotan_first_arch_ind = wotan_results[i][0]
+					wotan_second_arch_ind = wotan_results[j][0]
+
+					#which architecture is better according to VPR? since both the wotan and vpr results
+					#are sorted in descending order according to routability, the architecture that is better
+					#is the one that comes first in the results list
+					(vpr_one, dummy) = index_2d(vpr_results, wotan_first_arch_ind)
+					(vpr_two, dummy) = index_2d(vpr_results, wotan_second_arch_ind)
+
+					#do wotan & VPR agree on the relative ordering of these architectures?
+					if vpr_one < vpr_two:
+						#wotan and vpr agree
+						agree_cases += 1
+
+					total_comparisons += 1
+					
+					j += 1
+				i += 1
+
+		print(str(agree_cases) + ' out of ' + str(total_comparisons))	#XXX
+
+		#print results to a file
+		with open(results_file, 'w+') as f:
+			for w_result in wotan_results:
+				result_index = wotan_results.index(w_result)
+				v_result = vpr_results[result_index]
+				
+				for w_elem in w_result:
+					f.write(str(w_elem) + '\t')
+				f.write('\t')
+				for v_elem in v_result:
+					f.write(str(v_elem) + '\t')
+				f.write('\n')
+
+			if compare_against_VPR:
+				f.write('\n')
+				f.write('Wotan and VPR agree in ' + str(agree_cases) + '/' + str(total_comparisons) + ' pairwise comparisons\n')
+
+#TODO:
+#- sort results
+#	- wotan in descending order
+#	- vpr in ascending order
+#
+#- figure out how many pairwise comparisons wotan got right
+				
+
 
 
 #Contains dictionaries of architectures that can be used for Wotan and VPR 
@@ -1327,6 +1475,18 @@ def get_geomean(my_list):
 	return result
 
 
+#returns (x,y) index of 'val' in 'my_list' 
+def index_2d(my_list, val):
+	result_x = None
+	result_y = None
+	
+	for sublist in my_list:
+		if val in sublist:
+			result_x = my_list.index(sublist)
+			result_y = sublist.index(val)
+			break
+
+	return (result_x, result_y)
 
 
 #creates a group of wotan test suites based on the specified options.
@@ -1383,7 +1543,8 @@ def my_custom_arch_pair_list(arch_dictionaries):
 	#string_pairs += [['len4_in-eq_wilton_fcin0.5_fcout0.1', 'len2_in-eq_wilton_fcin0.5_fcout0.1']]
 	#string_pairs += [['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv', 'len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']]
 	#string_pairs += [['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv', 'len2_wilton_fcin0.15_fcout0.45_arch:4LUT-noequiv']]
-	string_pairs += [['len4_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv', 'len1_planar_fcin0.25_fcout0.1_arch:4LUT-noequiv']]
+	#string_pairs += [['len4_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv', 'len1_planar_fcin0.25_fcout0.1_arch:4LUT-noequiv']]
+	string_pairs += [['len1_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv', 'len2_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv']]
 
 	############ Moderate ############
 
@@ -1398,6 +1559,8 @@ def my_custom_arch_pair_list(arch_dictionaries):
 		arch_pairs += [[arch_point0, arch_point1]]
 
 	return arch_pairs
+
+
 
 
 ## evenly sampled time at 200ms intervals

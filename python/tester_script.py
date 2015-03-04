@@ -237,7 +237,7 @@ test_suites_4lut += [wt.make_test_group(num_suites=3,
 				  wotan_opts=wotan_opts
 				 )]
 
-test_suites = test_suites_6lut + test_suites_4lut
+test_suites = test_suites_6lut #+ test_suites_4lut
 
 
 ############ Run Tests ############
@@ -251,16 +251,21 @@ tester = wt.Wotan_Tester(
 		)
 
 ### Run test suites and plot groups of tests on the same graph
-tester.run_all_tests_sequentially()
+#tester.run_all_tests_sequentially()
 
 
 ### Run pairwise architecture comparisons
-#results_file = wotan_path + '/python/pair_test.txt'
+results_file = wotan_path + '/python/pair_test.txt'
 #arch_pairs_list = tester.make_random_arch_pairs_list(40)
 #arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
 #tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
 #                                    compare_against_VPR=True)
 
+arch_list = tester.make_random_arch_list(4)
+print(arch_list)
+tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
+                                  wotan_opts,
+                                  compare_against_VPR=True)
 
 
 ### Sweep on architecture over a range of channel widths
