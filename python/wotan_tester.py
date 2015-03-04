@@ -883,16 +883,21 @@ class Wotan_Tester:
 	#returns a list where each entry is a unique architecture point.
 	#makes an arch list through a call to 'make_random_arch_pairs_list' so 'num_archs' must currently be even (i'm lazy)
 	def make_random_arch_list(self, num_archs):
-		if (num_archs % 2) != 0:
-			print('make_random_arch_list expects num_archs to be even')
-			sys.exit()
-		 
-		arch_pairs_list = self.make_random_arch_pairs_list(num_archs/2)
+
+		num_arch_points = len(self.arch_point_list)
 
 		arch_list = []
-		for arch_pair in arch_pairs_list:
-			arch_list += [arch_pair[0]]
-			arch_list += [arch_pair[1]]
+		i = 0
+		while i < num_archs:
+			#get a random architecture point and avoid repetitions
+			arch_ind = random.randint(0, num_arch_points-1)
+			arch_point = self.arch_point_list[ arch_ind ]
+			while arch_point in arch_list:
+				arch_ind = random.randint(0, num_arch_points-1)
+				arch_point = self.arch_point_list[ arch_ind ]
+
+			arch_list += [arch_point]
+			i += 1
 
 		return arch_list
 
@@ -1086,7 +1091,7 @@ class Wotan_Tester:
 		#- evaluate with VPR if enabled
 		for arch_point in arch_list:
 			arch_point_index = arch_list.index(arch_point)
-			print('Run ' + str(arch_point_index+1) + '/' + str(len(arch_list)))
+			print('Run ' + str(arch_point_index+1) + '/' + str(len(arch_list)) + '    arch is ' + arch_point.as_str() )
 
 
 			###### Use VPR to dump out the RR graph corresponding to this architecture ######
@@ -1136,16 +1141,15 @@ class Wotan_Tester:
 				#add VPR result to running list
 				vpr_result_entry = [arch_point_index, arch_point.as_str(), results[0]]
 				vpr_results += [vpr_result_entry]
-
 	
 		
 		#sort results -- descending for wotan, ascending for vpr
 		wotan_results.sort(key=lambda x: x[2], reverse=True)
 		vpr_results.sort(key=lambda x: x[2])
 
+		#figure out how many pairwise comparisons of wotan agree with VPR
+		# --> compare every architecture result to every other architecture result
 		if compare_against_VPR:
-			#figure out how many pairwise comparisons of wotan agree with VPR
-			# --> compare every architecture result to every other architecture result
 			total_comparisons = 0
 			agree_cases = 0
 			i = 0
