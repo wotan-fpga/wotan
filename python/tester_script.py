@@ -255,13 +255,15 @@ tester = wt.Wotan_Tester(
 
 
 ### Run pairwise architecture comparisons
-results_file = wotan_path + '/python/pair_test.txt'
+#results_file = wotan_path + '/python/pair_test.txt'
 #arch_pairs_list = tester.make_random_arch_pairs_list(40)
 #arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
 #tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
 #                                    compare_against_VPR=True)
 
-arch_list = tester.make_random_arch_list(60)
+### Get absolute metric for a list of architecture points ###
+#arch_list = tester.make_random_arch_list(60)
+arch_list = wt.my_custom_archs_list(arch_dictionaries)
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   compare_against_VPR=True)
