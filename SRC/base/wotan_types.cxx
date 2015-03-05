@@ -146,7 +146,7 @@ void Analysis_Settings::alloc_and_set_test_tile_coords(Arch_Structs *arch_struct
 int Analysis_Settings::get_max_path_weight(int conn_length){
 	/* this is a provisional scheme; will probably change later. but for now will set max
 	   path weight to give some flexibility in enumerating paths of the connection */
-	int max_path_weight = 6 + conn_length*1.3;
+	int max_path_weight = 18 + conn_length*1.3;
 	return max_path_weight;
 }
 /*==== END Analysis_Settings Class ====*/
@@ -525,7 +525,7 @@ float RR_Node::access_path_count_history(float increment_val, RR_Node &target_no
 	int target_ptc = target_node.get_ptc_num();
 
 	e_rr_type my_type = this->get_rr_type();
-	if (my_type == OPIN || my_type == IPIN /*|| my_type == CHANX || my_type == CHANY*/){
+	if (my_type == OPIN || my_type == IPIN /*|| my_type == CHANX || my_type == CHANY*/){		//FIXME: why was this commented out? why didn't i comment it? :(
 		int radius = this->path_count_history_radius;
 		int my_x = this->get_xlow();
 		int my_y = this->get_ylow();

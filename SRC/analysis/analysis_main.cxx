@@ -215,6 +215,11 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist);
 
+/* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
+   note that the adjusted max path weight SHOULD stay in effect for only the current source/sink pair analysis
+   and is reset afterwards. */
+int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight);
+
 /* traverses graph from 'from_node_ind' and for each node traversed, sets distance to the source/sink node from
    which the traversal started (based on traversal_dir) */
 void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
@@ -719,80 +724,60 @@ void* enumerate_paths_from_source( void *ptr ){
 		int num_input_pins = block_type[fill_type_ind].get_num_receivers();
 		vector<int> conns_at_distance;
 		conns_at_distance.assign(max_conn_length+1, 0);
-		for (int ipass = 0; ipass < 2; ipass++){
-			for (int ilen = 1; ilen <= max_conn_length; ilen++){
-				if (length_prob[ilen] == 0){
-					continue;
-				}		
+		for (int ilen = 1; ilen <= max_conn_length; ilen++){
+			if (length_prob[ilen] == 0){
+				continue;
+			}		
 
-				/* traverse a list of blocks that is a distance 'ilen' away from the test tile.
-				   here we want to consider each combination of dx and dy who's (individually absolute) sum adds up
-				   to ilen */
-				for (int idx = -ilen; idx <= ilen; idx++){
-					int y_distance = ilen - abs(idx);
-					for (int idy = -y_distance; idy <= y_distance; idy += max(2*y_distance, 1)){	//max() in case y_distance=0
-						int dest_x = tile_coord.x + idx;
-						int dest_y = tile_coord.y + idy;
+			/* traverse a list of blocks that is a distance 'ilen' away from the test tile.
+			   here we want to consider each combination of dx and dy who's (individually absolute) sum adds up
+			   to ilen */
+			for (int idx = -ilen; idx <= ilen; idx++){
+				int y_distance = ilen - abs(idx);
+				for (int idy = -y_distance; idy <= y_distance; idy += max(2*y_distance, 1)){	//max() in case y_distance=0
+					int dest_x = tile_coord.x + idx;
+					int dest_y = tile_coord.y + idy;
+					
+
+					/* check if this block is within grid bounds */
+					if ( (dest_x > 0 && dest_x < grid_size_x-1) &&
+					     (dest_y > 0 && dest_y < grid_size_y-1) ){
+
+						Grid_Tile *dest_tile = &grid[dest_x][dest_y];
+						int dest_type_ind = dest_tile->get_type_index();
+
 						
+						Physical_Type_Descriptor *dest_type = &block_type[dest_type_ind];
 
-						/* check if this block is within grid bounds */
-						if ( (dest_x > 0 && dest_x < grid_size_x-1) &&
-						     (dest_y > 0 && dest_y < grid_size_y-1) ){
-
-							Grid_Tile *dest_tile = &grid[dest_x][dest_y];
-							int dest_type_ind = dest_tile->get_type_index();
-
-							//cout << "here" << " ilen " << ilen << "  idx " << idx << "  idy " << idy << "   y_dist " << y_distance << endl;
-							if (ipass == 0){
-								//TODO: conns_at_distance[ilen] has been replaced by num_conns below. so remove this stuff
-								/* first pass -- add # inputs at this tile/length to running total */
-
-								/* check if block is of 'fill' type */
-								if (fill_type_ind != dest_type_ind){
-									WTHROW(EX_PATH_ENUM, "destination block at (" << dest_x << "," << dest_y << 
-											     ") is not of fill type");
-								}
-								
-								conns_at_distance[ilen] +=  num_input_pins;
-							} else {
-								/* second pass -- will do actual path enumeration here */
-								
-								Physical_Type_Descriptor *dest_type = &block_type[dest_type_ind];
-
-
-								/* iterate over each pin class*/
-								for (int iclass = 0; iclass < (int)dest_type->class_inf.size(); iclass++){
-									Pin_Class *pin_class = &dest_type->class_inf[iclass];
-									
-									/* only want classes that represent receiver pins. also must actually have pins */
-									if (pin_class->get_pin_type() != RECEIVER || pin_class->get_num_pins() == 0){
-										continue;
-									}
-
-									/* do not want global pins */
-									int sample_pin = pin_class->pinlist[0];
-									if (dest_type->is_global_pin[sample_pin]){
-										continue;
-									}
-
-									/* get node corresponding to this sink */	
-									int sink_node_ind = routing_structs->rr_node_index[SINK][dest_x][dest_y][iclass];
-
-									//TODO: num_conns replaced conns_at_distance[ilen]. so remove the 'first pass' condition above
-									int num_conns = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid, 
-									                              grid_size_x, grid_size_y, block_type, fill_type_ind);
-
-									analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
-												routing_structs, ss_distances, node_topo_inf, ilen, 
-												num_conns, //conns_at_distance[ilen], 
-												nodes_visited, topological_mode, user_opts);
-									
-									iterations++;
-									pthread_mutex_lock(&f_analysis_results.thread_mutex);
-									f_analysis_results.desired_conns++;
-									pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-								}
+						/* iterate over each pin class*/
+						for (int iclass = 0; iclass < (int)dest_type->class_inf.size(); iclass++){
+							Pin_Class *pin_class = &dest_type->class_inf[iclass];
+							
+							/* only want classes that represent receiver pins. also must actually have pins */
+							if (pin_class->get_pin_type() != RECEIVER || pin_class->get_num_pins() == 0){
+								continue;
 							}
+
+							/* do not want global pins */
+							int sample_pin = pin_class->pinlist[0];
+							if (dest_type->is_global_pin[sample_pin]){
+								continue;
+							}
+
+							/* get node corresponding to this sink */	
+							int sink_node_ind = routing_structs->rr_node_index[SINK][dest_x][dest_y][iclass];
+
+							int num_conns = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid, 
+										      grid_size_x, grid_size_y, block_type, fill_type_ind);
+
+							analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
+										routing_structs, ss_distances, node_topo_inf, ilen, 
+										num_conns, nodes_visited, topological_mode, user_opts);
+							
+							iterations++;
+							pthread_mutex_lock(&f_analysis_results.thread_mutex);
+							f_analysis_results.desired_conns++;
+							pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 						}
 					}
 				}
@@ -986,10 +971,6 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 							nodes_visited, user_opts,
 							scaling_factor_for_enumerate);
 
-		/* increment number of connections for which paths have so far been enumerated */
-		pthread_mutex_lock(&f_analysis_results.thread_mutex);
-		f_analysis_results.num_conns++;
-		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	} else if (topological_mode == PROBABILITY){
 		/* estimate probability of connection being routable and increment the probability metric */
 		float probability_connection_routable = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
@@ -1076,6 +1057,11 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 					enumerate_node_popped_func,
 					enumerate_child_iterated_func,
 					enumerate_traversal_done_func);
+
+		/* increment number of connections for which paths have so far been enumerated */
+		pthread_mutex_lock(&f_analysis_results.thread_mutex);
+		f_analysis_results.num_conns++;
+		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	}
 }
 
@@ -1253,11 +1239,23 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 	if (min_dist_sink != min_dist_source){
 		WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
 	}
-	//TODO: I think ceil should be removed...
-	max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), max_path_weight);
+
+	max_path_weight = adjust_max_path_weight_based_on_ss_dist(min_dist_sink, max_path_weight);
+	//max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), max_path_weight);	//adjust_max_path_weight_based_on_ss_dist
 
 	(*adjusted_max_path_weight) = max_path_weight;
 	(*source_sink_dist) = min_dist_sink;
+}
+
+/* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
+   note that the adjusted max path weight SHOULD stay in effect for only the current source/sink pair analysis
+   and is reset afterwards. */
+int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight){
+	int adjusted_max_path_weight = UNDEFINED;
+
+	adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
+
+	return adjusted_max_path_weight;
 }
 
 
@@ -1268,10 +1266,6 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	
 	//cout << "Distance traversal " << traversal_dir << " from " << from_node_ind << " at " << rr_node[from_node_ind].get_xlow() << "," << rr_node[from_node_ind].get_ylow() <<
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
-
-	//if (from_node_ind == 602 && to_node_ind == 521){
-	//	cout << "HERE" << endl;
-	//}
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
 	My_Bounded_Priority_Queue< int > PQ( max_path_weight );
@@ -1295,6 +1289,11 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 		int node_ind = PQ.top();
 		int node_path_weight = PQ.top_weight();	//should match the distance from this node to source/sink (if doing forward/backward traversal)
 		PQ.pop();
+
+		if (node_ind == to_node_ind){
+			/* adjust max path weight (determines which nodes will be considered during this traversal) */
+			max_path_weight = adjust_max_path_weight_based_on_ss_dist(node_path_weight, max_path_weight);
+		}
 
 		if (traversal_dir == FORWARD_TRAVERSAL){
 			/* expand along outgoing edges */
@@ -1659,7 +1658,8 @@ static float analyze_lowest_probs_pqs( vector< t_lowest_probs_pq > &lowest_probs
 
 		for (int ient = 0; ient < num_entries; ient++){
 			float entry = lowest_probs_pqs[ilen].top();
-			//cout << " length " << ilen << "  entry " << entry << endl;
+			//if (ilen == 1)
+			//	cout << " length " << ilen << "  entry " << entry << endl;
 			result += entry;
 			lowest_probs_pqs[ilen].pop();
 		}
