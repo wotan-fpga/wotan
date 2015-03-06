@@ -264,9 +264,10 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
 arch_list = wt.my_custom_archs_list(arch_dictionaries)
+vpr_arch_ordering = wt.read_file_into_string_list(wotan_path + '/python/6LUT_vpr_ordering.txt')
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
-                                  compare_against_VPR=True)
+                                  vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 
 
 ### Sweep on architecture over a range of channel widths
