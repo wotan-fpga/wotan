@@ -215,6 +215,11 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist);
 
+/* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
+   note that the adjusted max path weight SHOULD stay in effect for only the current source/sink pair analysis
+   and is reset afterwards. */
+int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight);
+
 /* traverses graph from 'from_node_ind' and for each node traversed, sets distance to the source/sink node from
    which the traversal started (based on traversal_dir) */
 void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
@@ -258,6 +263,8 @@ void increment_probability_metric( float probability_increment, int connection_l
 static int get_num_routing_nodes(t_rr_node &rr_node);
 /* returns a 'reachability' metric based on routing node demands */
 static float node_demand_metric(User_Options *user_opts, t_rr_node &rr_node);
+/* returns from_x/to_x/from_y/to_y iteration limits of a 'core' FPGA region, according to CORE_OFFSET */
+static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size_x, int grid_size_y, int *from_x, int *from_y, int *to_x, int *to_y);
 /* currently returns the total number of connections at each connection length <= maximum connection length */
 static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *routing_structs, Arch_Structs *arch_structs, 
 			vector<int> &conns_at_length);
@@ -461,15 +468,20 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	for (it = analysis_settings->test_tile_coords.begin(); it != analysis_settings->test_tile_coords.end(); it++){
 
 		Coordinate tile_coord = (*it);
-		if (topological_mode == PROBABILITY){
-			if (user_opts->analyze_core){
-				/* reachability analysis will only be performed on a core region of the FPGA */
-				if (tile_coord.x < CORE_OFFSET || tile_coord.x > grid_size_x - 1 - CORE_OFFSET 
-						   || tile_coord.y < CORE_OFFSET || tile_coord.y > grid_size_y - 1 - CORE_OFFSET){
+
+		/* the user may have specified that only the core region of the FPGA is to be used for probability analysis. in that case
+		   probability analysis will be performed for all tiles that are within the square that is CORE_OFFSET tiles from the FPGA perimeter */
+		if (user_opts->analyze_core){
+			if (topological_mode == PROBABILITY){
+				int from_x, to_x, from_y, to_y;
+				get_prob_analysis_tile_region(user_opts, grid_size_x, grid_size_y, &from_x, &from_y, &to_x, &to_y);
+
+				if (tile_coord.x < from_x || tile_coord.x > to_x || tile_coord.y < from_y || tile_coord.y > to_y){
 					continue;
 				}
 			}
 		}
+
 
 		Grid_Tile *test_tile = &arch_structs->grid[tile_coord.x][tile_coord.y];
 		Physical_Type_Descriptor *tile_type= &arch_structs->block_type[ test_tile->get_type_index() ];
@@ -525,6 +537,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	double total_demand = 0;
 	double squared_demand = 0;
 
+
+	/* calculate some node demand-related metrics */
 	int num_nodes = routing_structs->get_num_rr_nodes();
 	int num_routing_nodes = 0;
 	for (int inode = 0; inode < num_nodes; inode++){
@@ -540,7 +554,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		}
 	}
 	
-
+	/* end of analysis -- print results */
 	if (topological_mode == ENUMERATE){
 		float normalized_demand = node_demand_metric(user_opts, routing_structs->rr_node);
 		cout << "fraction enumerated: " << (float)f_analysis_results.num_conns / (float)f_analysis_results.desired_conns << endl;
@@ -557,6 +571,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
 		cout.setf(ios::fixed);
 		cout.precision(4);
+
 		cout << "Total prob: " << f_analysis_results.total_prob / f_analysis_results.max_possible_total_prob << endl;
 		cout << "Pessimistic prob: " << worst_probabilities_metric / (f_analysis_results.max_possible_total_prob * WORST_ROUTABILITY_PERCENTILE) << endl;
 	}
@@ -679,7 +694,7 @@ void* enumerate_paths_from_source( void *ptr ){
 		/* get pin and length probabilities */
 		t_prob_list &length_prob = analysis_settings->length_probabilities;
 
-		/* check probability of source node. if it's 0, then no point in doing it */
+		/* check probability of source node. if it's 0, then no point in enumerating from it */
 		float sum_of_source_probabilities;
 		get_sum_of_source_probabilities(source_node_ind, routing_structs->rr_node, analysis_settings->pin_probabilities, *test_tile_type,
 					&sum_of_source_probabilities, NULL);
@@ -714,85 +729,65 @@ void* enumerate_paths_from_source( void *ptr ){
 
 		int iterations = 0;
 
-		/* first pass: get number of input connections of length 'ilen' away from the test tile (at each allowable ilen)
-		   second pass: enumerate paths to neighboring tiles (scaling factor here depends on their distances from test tile) */
+		/* enumerate paths to neighboring tiles (scaling factor here depends on their distances from test tile) */
 		int num_input_pins = block_type[fill_type_ind].get_num_receivers();
 		vector<int> conns_at_distance;
 		conns_at_distance.assign(max_conn_length+1, 0);
-		for (int ipass = 0; ipass < 2; ipass++){
-			for (int ilen = 1; ilen <= max_conn_length; ilen++){
-				if (length_prob[ilen] == 0){
-					continue;
-				}		
+		for (int ilen = 1; ilen <= max_conn_length; ilen++){
+			if (length_prob[ilen] == 0){
+				continue;
+			}
 
-				/* traverse a list of blocks that is a distance 'ilen' away from the test tile.
-				   here we want to consider each combination of dx and dy who's (individually absolute) sum adds up
-				   to ilen */
-				for (int idx = -ilen; idx <= ilen; idx++){
-					int y_distance = ilen - abs(idx);
-					for (int idy = -y_distance; idy <= y_distance; idy += max(2*y_distance, 1)){	//max() in case y_distance=0
-						int dest_x = tile_coord.x + idx;
-						int dest_y = tile_coord.y + idy;
+			int num_conns = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid, 	//TODO: rename 'num_conns_at_length'
+						      grid_size_x, grid_size_y, block_type, fill_type_ind);
+
+			/* traverse a list of blocks that is a distance 'ilen' away from the test tile.
+			   here we want to consider each combination of dx and dy who's (individually absolute) sum adds up
+			   to ilen */
+			for (int idx = -ilen; idx <= ilen; idx++){
+				int y_distance = ilen - abs(idx);
+				for (int idy = -y_distance; idy <= y_distance; idy += max(2*y_distance, 1)){	//max() in case y_distance=0
+					int dest_x = tile_coord.x + idx;
+					int dest_y = tile_coord.y + idy;
+					
+
+					/* check if this block is within grid bounds */
+					if ( (dest_x > 0 && dest_x < grid_size_x-1) &&
+					     (dest_y > 0 && dest_y < grid_size_y-1) ){
+
+						Grid_Tile *dest_tile = &grid[dest_x][dest_y];
+						int dest_type_ind = dest_tile->get_type_index();
+
 						
+						Physical_Type_Descriptor *dest_type = &block_type[dest_type_ind];
 
-						/* check if this block is within grid bounds */
-						if ( (dest_x > 0 && dest_x < grid_size_x-1) &&
-						     (dest_y > 0 && dest_y < grid_size_y-1) ){
-
-							Grid_Tile *dest_tile = &grid[dest_x][dest_y];
-							int dest_type_ind = dest_tile->get_type_index();
-
-							//cout << "here" << " ilen " << ilen << "  idx " << idx << "  idy " << idy << "   y_dist " << y_distance << endl;
-							if (ipass == 0){
-								//TODO: conns_at_distance[ilen] has been replaced by num_conns below. so remove this stuff
-								/* first pass -- add # inputs at this tile/length to running total */
-
-								/* check if block is of 'fill' type */
-								if (fill_type_ind != dest_type_ind){
-									WTHROW(EX_PATH_ENUM, "destination block at (" << dest_x << "," << dest_y << 
-											     ") is not of fill type");
-								}
-								
-								conns_at_distance[ilen] +=  num_input_pins;
-							} else {
-								/* second pass -- will do actual path enumeration here */
-								
-								Physical_Type_Descriptor *dest_type = &block_type[dest_type_ind];
-
-
-								/* iterate over each pin class*/
-								for (int iclass = 0; iclass < (int)dest_type->class_inf.size(); iclass++){
-									Pin_Class *pin_class = &dest_type->class_inf[iclass];
-									
-									/* only want classes that represent receiver pins. also must actually have pins */
-									if (pin_class->get_pin_type() != RECEIVER || pin_class->get_num_pins() == 0){
-										continue;
-									}
-
-									/* do not want global pins */
-									int sample_pin = pin_class->pinlist[0];
-									if (dest_type->is_global_pin[sample_pin]){
-										continue;
-									}
-
-									/* get node corresponding to this sink */	
-									int sink_node_ind = routing_structs->rr_node_index[SINK][dest_x][dest_y][iclass];
-
-									//TODO: num_conns replaced conns_at_distance[ilen]. so remove the 'first pass' condition above
-									int num_conns = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid, 
-									                              grid_size_x, grid_size_y, block_type, fill_type_ind);
-
-									analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
-												routing_structs, ss_distances, node_topo_inf, ilen, 
-												num_conns, //conns_at_distance[ilen], 
-												nodes_visited, topological_mode, user_opts);
-									
-									iterations++;
-									pthread_mutex_lock(&f_analysis_results.thread_mutex);
-									f_analysis_results.desired_conns++;
-									pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-								}
+						/* iterate over each pin class*/
+						for (int iclass = 0; iclass < (int)dest_type->class_inf.size(); iclass++){
+							Pin_Class *pin_class = &dest_type->class_inf[iclass];
+							
+							/* only want classes that represent receiver pins. also must actually have pins */
+							if (pin_class->get_pin_type() != RECEIVER || pin_class->get_num_pins() == 0){
+								continue;
 							}
+
+							/* do not want global pins */
+							int sample_pin = pin_class->pinlist[0];
+							if (dest_type->is_global_pin[sample_pin]){
+								continue;
+							}
+
+							/* get node corresponding to this sink */	
+							int sink_node_ind = routing_structs->rr_node_index[SINK][dest_x][dest_y][iclass];
+
+							/* analyze this source/sink connection */
+							analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
+										routing_structs, ss_distances, node_topo_inf, ilen, 
+										num_conns, nodes_visited, topological_mode, user_opts);
+							
+							iterations++;
+							pthread_mutex_lock(&f_analysis_results.thread_mutex);
+							f_analysis_results.desired_conns++;
+							pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 						}
 					}
 				}
@@ -802,6 +797,25 @@ void* enumerate_paths_from_source( void *ptr ){
 
 	return (void*) NULL;
 }
+
+
+/* returns from_x/to_x/from_y/to_y iteration limits (inclusive) of a 'core' FPGA region, according to CORE_OFFSET */
+static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size_x, int grid_size_y, int *from_x, int *from_y, int *to_x, int *to_y){
+
+	if (user_opts->analyze_core){
+		*from_x = CORE_OFFSET;
+		*to_x = grid_size_x - 1 - CORE_OFFSET;
+		*from_y = CORE_OFFSET;
+		*to_y = grid_size_y - 1 - CORE_OFFSET;
+	} else {
+		/* if user has not enabled analysis of the core region, return normal iteration limits of the FPGA tiles (which exclude the perimeter IOs) */
+		*from_x = 1;
+		*to_x = grid_size_x-2;
+		*from_y = 1;
+		*to_y = grid_size_y-2; 
+	}
+}
+
 
 /* currently returns the total number of connections at each connection length <= maximum connection length */
 static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *routing_structs, Arch_Structs *arch_structs, 
@@ -820,21 +834,11 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 	/* 0..max_conn_length possible connection lengths */
 	conns_at_length.assign(max_conn_length + 1, 0);
 
-	//TODO: want to limit this if user selected core region for analysis
+	/* determine the iteration limits for the region of the FPGA which we want to analyze */
 	int from_x, to_x, from_y, to_y;
-	if (user_opts->analyze_core){
-		from_x = CORE_OFFSET;
-		to_x = grid_size_x - 1 - CORE_OFFSET;
-		from_y = CORE_OFFSET;
-		to_y = grid_size_y - 1 - CORE_OFFSET;
-	} else {
-		from_x = 1;
-		to_x = grid_size_x-2;
-		from_y = 1;
-		to_y = grid_size_y-2; 
-	}
+	get_prob_analysis_tile_region(user_opts, grid_size_x, grid_size_y, &from_x, &from_y, &to_x, &to_y);
 
-	/* over each non-perimeter tile of the FPGA */
+	/* over each tile of the FPGA as per above if-else */
 	for (int ix = from_x; ix <= to_x; ix++){
 		for (int iy = from_y; iy <= to_y; iy++){
 			int block_type_ind = grid[ix][iy].get_type_index();
@@ -861,6 +865,7 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 		}
 	}
 }
+
 
 /* returns number of connections from tile at the specified coordinates at specified length.
    this is basically a sum of the number of input pins for each tile 'length' away from this one */
@@ -899,10 +904,12 @@ static int conns_at_distance_from_tile(int tile_x, int tile_y, int length, t_gri
 	return num_conns;
 }
 
+
 /* allocates source/sink distance vector for each thread */
 void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int num_threads, int num_nodes){
 	thread_ss_distances.assign(num_threads, t_ss_distances(num_nodes, SS_Distances()));
 }
+
 
 /* allocates node topological traversal info vector for each thread */
 void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, int num_nodes){
@@ -914,6 +921,7 @@ void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, in
 	}
 }
 
+
 /* allocates a t_nodes_visited structure for each thread */
 void alloc_thread_nodes_visited(t_thread_nodes_visited &thread_nodes_visited, int num_threads, int num_nodes){
 	thread_nodes_visited.assign(num_threads, t_nodes_visited());
@@ -922,10 +930,12 @@ void alloc_thread_nodes_visited(t_thread_nodes_visited &thread_nodes_visited, in
 	}
 }
 
+
 /* allocates a Enumerate_Conn_Info structure for each thread */
 void alloc_thread_conn_info(t_thread_conn_info &thread_conn_info, int num_threads){
 	thread_conn_info.assign(num_threads, Conn_Info());
 }
+
 
 /* allocates a pthread_t entry for each thread */
 void alloc_threads( t_threads &threads, int num_threads ){
@@ -966,13 +976,11 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	int num_sinks = get_num_sinks(sink_node_ind, rr_node, fill_block_type);
 	int num_sources = get_num_sources(source_node_ind, rr_node, fill_block_type);
 
-	int sinks;
 	float probability;
 	if (topological_mode == ENUMERATE){
-		sinks = num_sinks;
 		probability = sum_of_source_probabilities;
 	} else {
-		sinks = 1;
+		//num_sinks = 1;			//FIXME. WHY 1???? this doesn't make sense... :(((((	commented out, but need to figure out original reason...
 		probability = one_pin_prob;
 	}
 
@@ -980,16 +988,12 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	if (topological_mode == ENUMERATE){
 		/* enumerate connection paths */
 
-		float scaling_factor_for_enumerate = (float)sinks * probability * length_prob / (float)number_conns_at_length;
+		float scaling_factor_for_enumerate = (float)num_sinks * probability * length_prob / (float)number_conns_at_length;
 		enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 							routing_structs, ss_distances, node_topo_inf, conn_length, 
 							nodes_visited, user_opts,
 							scaling_factor_for_enumerate);
 
-		/* increment number of connections for which paths have so far been enumerated */
-		pthread_mutex_lock(&f_analysis_results.thread_mutex);
-		f_analysis_results.num_conns++;
-		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	} else if (topological_mode == PROBABILITY){
 		/* estimate probability of connection being routable and increment the probability metric */
 		float probability_connection_routable = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
@@ -1008,7 +1012,7 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 
 			/* add this connection's ideal probability to the running total (for normalizing later) */
 			pthread_mutex_lock(&f_analysis_results.thread_mutex);
-			f_analysis_results.max_possible_total_prob += scaling_factor * 1.0;
+			f_analysis_results.max_possible_total_prob += scaling_factor * 1.0;	//1.0 because that's the max probability a connection can have
 			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 		} else {
 			WTHROW(EX_PATH_ENUM, "Got negative connection probability: " << probability_connection_routable);
@@ -1076,6 +1080,11 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 					enumerate_node_popped_func,
 					enumerate_child_iterated_func,
 					enumerate_traversal_done_func);
+
+		/* increment number of connections for which paths have so far been enumerated */
+		pthread_mutex_lock(&f_analysis_results.thread_mutex);
+		f_analysis_results.num_conns++;
+		pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 	}
 }
 
@@ -1253,11 +1262,23 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 	if (min_dist_sink != min_dist_source){
 		WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
 	}
-	//TODO: I think ceil should be removed...
-	max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), max_path_weight);
+
+	max_path_weight = adjust_max_path_weight_based_on_ss_dist(min_dist_sink, max_path_weight);
+	//max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), max_path_weight);	//adjust_max_path_weight_based_on_ss_dist
 
 	(*adjusted_max_path_weight) = max_path_weight;
 	(*source_sink_dist) = min_dist_sink;
+}
+
+/* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
+   note that the adjusted max path weight SHOULD stay in effect for only the current source/sink pair analysis
+   and is reset afterwards. */
+int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight){
+	int adjusted_max_path_weight = UNDEFINED;
+
+	adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
+
+	return adjusted_max_path_weight;
 }
 
 
@@ -1268,10 +1289,6 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	
 	//cout << "Distance traversal " << traversal_dir << " from " << from_node_ind << " at " << rr_node[from_node_ind].get_xlow() << "," << rr_node[from_node_ind].get_ylow() <<
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
-
-	//if (from_node_ind == 602 && to_node_ind == 521){
-	//	cout << "HERE" << endl;
-	//}
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
 	My_Bounded_Priority_Queue< int > PQ( max_path_weight );
@@ -1295,6 +1312,11 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 		int node_ind = PQ.top();
 		int node_path_weight = PQ.top_weight();	//should match the distance from this node to source/sink (if doing forward/backward traversal)
 		PQ.pop();
+
+		if (node_ind == to_node_ind){
+			/* adjust max path weight (determines which nodes will be considered during this traversal) */
+			max_path_weight = adjust_max_path_weight_based_on_ss_dist(node_path_weight, max_path_weight);
+		}
 
 		if (traversal_dir == FORWARD_TRAVERSAL){
 			/* expand along outgoing edges */
@@ -1606,7 +1628,7 @@ int get_num_sinks(int sink_node_ind, t_rr_node &rr_node, Physical_Type_Descripto
 		WTHROW(EX_PATH_ENUM, "Expected node to be a sink. Got node of type: " << rr_node[sink_node_ind].get_rr_type());
 	}
 
-	int node_ptc = rr_node[sink_node_ind].get_ptc_num();
+	int node_ptc = rr_node[sink_node_ind].get_ptc_num();			//TODO: call a get_num_subnodes function of some sort?? otherwise shared code with get_num_sources
 	Pin_Class &pin_class = fill_block_type.class_inf[node_ptc];
 
 	num_sinks = pin_class.get_num_pins();
@@ -1636,13 +1658,17 @@ void increment_probability_metric( float probability_increment, int connection_l
 	pthread_mutex_lock(&f_analysis_results.thread_mutex);
 	f_analysis_results.total_prob += probability_increment;
 
+	static int gar = 0;
+	
 	/* account for multiple sources/sinks being present in a supersource/supersink */
 	int div_factor = num_subsources * num_subsinks;
 	float push_value = probability_increment / (float)div_factor;
 	for (int i = 0; i < div_factor; i++){
 		f_analysis_results.lowest_probs_pqs[connection_length].push( push_value );
+		gar++;
 	}
 
+	//cout << num_subsources << " " << num_subsinks << " " << gar << endl;
 	pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 }
 
@@ -1659,7 +1685,8 @@ static float analyze_lowest_probs_pqs( vector< t_lowest_probs_pq > &lowest_probs
 
 		for (int ient = 0; ient < num_entries; ient++){
 			float entry = lowest_probs_pqs[ilen].top();
-			//cout << " length " << ilen << "  entry " << entry << endl;
+			//if (ilen == 1)
+			//	cout << " length " << ilen << "  entry " << entry << endl;
 			result += entry;
 			lowest_probs_pqs[ilen].pop();
 		}
