@@ -1,60 +1,60 @@
-len1_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv 
-len1_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv 
-len1_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv 
-len1_planar_fcin0.15_fcout0.75_arch:6LUT-iequiv
-len1_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv
-len2_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv 
-len2_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv 
-len2_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv
-len2_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv
-len1_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv
-len2_universal_fcin0.15_fcout0.35_arch:6LUT-iequiv 
-len1_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv
-len2_wilton_fcin0.15_fcout0.75_arch:6LUT-iequiv
-len2_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv
-len1_wilton_fcin0.65_fcout0.1_arch:6LUT-iequiv 
-len2_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv 
-len2_wilton_fcin0.15_fcout0.45_arch:6LUT-iequiv
-len2_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv 
-len2_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv  
-len1_universal_fcin0.15_fcout0.25_arch:6LUT-iequiv 
-len2_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv
-len2_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv
-len2_planar_fcin0.65_fcout0.1_arch:6LUT-iequiv
-len2_planar_fcin0.25_fcout0.1_arch:6LUT-iequiv
-len2_wilton_fcin0.15_fcout0.1_arch:6LUT-iequiv
-len2_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv
-len1_universal_fcin0.75_fcout0.1_arch:6LUT-iequiv  
-len1_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv 
-len1_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv  
-len1_universal_fcin0.45_fcout0.1_arch:6LUT-iequiv  
-len2_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv
-len1_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv  
-len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv
-len4_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv
-len4_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv
-len2_universal_fcin0.05_fcout0.1_arch:6LUT-iequiv  
-len4_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv
-len4_wilton_fcin0.55_fcout0.1_arch:6LUT-iequiv
-len4_wilton_fcin0.35_fcout0.1_arch:6LUT-iequiv
-len2_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv
-len4_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv  
-len4_universal_fcin0.65_fcout0.1_arch:6LUT-iequiv  
-len4_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv  
-len1_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv	
-len1_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv	
-len4_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv	
-len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv	
-len4_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv	
-len4_wilton_fcin0.25_fcout0.1_arch:6LUT-iequiv	
-len4_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv 
-len4_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv 
-len4_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv	
-len1_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv	
-len4_planar_fcin0.15_fcout0.15_arch:6LUT-iequiv	
-len4_universal_fcin0.25_fcout0.1_arch:6LUT-iequiv  
-len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv
-len4_wilton_fcin0.15_fcout0.15_arch:6LUT-iequiv
-len4_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv
-len4_universal_fcin0.15_fcout0.05_arch:6LUT-iequiv 
-len1_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv
+len1_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv	43.4598474819	
+len1_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv	43.6037953104	
+len1_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv	43.6679585746	
+len1_planar_fcin0.15_fcout0.75_arch:6LUT-iequiv	44.0424796987	
+len1_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv	44.1633461839	
+len2_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv	44.1845505626	
+len2_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv	44.1845505626	
+len2_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv	44.3741530485	
+len2_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv	44.37695392	
+len1_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv	44.5501201387	
+len2_universal_fcin0.15_fcout0.35_arch:6LUT-iequiv	44.6684052969	
+len1_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv	44.6931790997	
+len2_wilton_fcin0.15_fcout0.75_arch:6LUT-iequiv	44.6964975083	
+len2_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv	44.6973821541	
+len1_wilton_fcin0.65_fcout0.1_arch:6LUT-iequiv	44.7533922963	
+len2_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv	44.8397098345	
+len2_wilton_fcin0.15_fcout0.45_arch:6LUT-iequiv	44.8661906472	
+len2_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv	44.9833190568	
+len2_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv	45.2354154816	
+len1_universal_fcin0.15_fcout0.25_arch:6LUT-iequiv	45.5696972546	
+len2_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv	45.7579278192	
+len2_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv	45.8322805886	
+len2_planar_fcin0.65_fcout0.1_arch:6LUT-iequiv	45.8414618945	
+len2_planar_fcin0.25_fcout0.1_arch:6LUT-iequiv	46.1589472508	
+len2_wilton_fcin0.15_fcout0.1_arch:6LUT-iequiv	46.4430677894	
+len2_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv	46.8492341636	
+len1_universal_fcin0.75_fcout0.1_arch:6LUT-iequiv	47.1304302593	
+len1_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv	47.1741531486	
+len1_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv	47.389811236	
+len1_universal_fcin0.45_fcout0.1_arch:6LUT-iequiv	47.5801332249	
+len2_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv	47.763660586	
+len1_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv	48.3525001433	
+len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv	53.1197817201	
+len4_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv	53.1618555343	
+len4_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv	53.3089064793	
+len2_universal_fcin0.05_fcout0.1_arch:6LUT-iequiv	53.4952927839	
+len4_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv	53.5332417376	
+len4_wilton_fcin0.55_fcout0.1_arch:6LUT-iequiv	53.5694310461	
+len4_wilton_fcin0.35_fcout0.1_arch:6LUT-iequiv	53.6978696629	
+len2_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv	53.7085892841	
+len4_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv	53.7469749348	
+len4_universal_fcin0.65_fcout0.1_arch:6LUT-iequiv	53.7956434829	
+len4_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv	54.0512924015	
+len1_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv	54.1058485661	
+len1_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv	54.1332815596	
+len4_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv	54.1363253002	
+len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv	54.1363253002	
+len4_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv	54.1363253002	
+len4_wilton_fcin0.25_fcout0.1_arch:6LUT-iequiv	54.238546993	
+len4_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv	54.2573797709	
+len4_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv	54.2573797709	
+len4_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv	54.3528440344	
+len1_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv	54.358340507	
+len4_planar_fcin0.15_fcout0.15_arch:6LUT-iequiv	54.5810579888	
+len4_universal_fcin0.25_fcout0.1_arch:6LUT-iequiv	54.7733678019	
+len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv	54.8059889141	
+len4_wilton_fcin0.15_fcout0.15_arch:6LUT-iequiv	54.9361907935	
+len4_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv	55.2590675407	
+len4_universal_fcin0.15_fcout0.05_arch:6LUT-iequiv	57.2716491621	
+len1_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv	65.114597627	

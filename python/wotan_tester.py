@@ -613,7 +613,8 @@ class Wotan_Tester:
 			#run wotan and get the value of the target metric
 			self.make_wotan()
 			wotan_out = self.run_wotan(adjusted_wotan_opts)
-			current = float( regex_last_token(wotan_out, target_regex) )
+			regex_val = regex_last_token(wotan_out, target_regex)
+			current = float( regex_val )
 
 			if monotonic_increasing:
 				if current < target:
@@ -1130,7 +1131,7 @@ class Wotan_Tester:
 
 		#specifies how architectures should be evaluated.
 		#binary search over pin demand until target prob is hit with specified tolerance
-		target_prob = 0.3
+		target_prob = 0.5
 		target_tolerance = 0.005
 		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 
@@ -1202,16 +1203,18 @@ class Wotan_Tester:
 		#figure out how many pairwise comparisons of wotan agree with VPR
 		# --> compare every architecture result to every other architecture result
 		agree_cases = 0
+		agree_within_tolerance = 0
 		total_cases = 0
-		wotan_arch_ordering = [el[1] for el in wotan_results]
+		vpr_tolerance = 2
+		wotan_arch_ordering = [el[1:3] for el in wotan_results]		#get arch string and score for each element in 'wotan_arch_ordering'
 		if run_vpr_comparisons:
-			vpr_arch_ordering = [el[1] for el in vpr_results]
+			vpr_arch_ordering = [el[1:3] for el in vpr_results]
 
-			[agree_cases, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering)
+			[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
 		else:
 			#compare wotan results against passed-in list
 			if len(wotan_arch_ordering) == len(vpr_arch_ordering):
-				[agree_cases, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering)
+				[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
 
 		#print results to a file
 		with open(results_file, 'w+') as f:
@@ -1232,6 +1235,7 @@ class Wotan_Tester:
 
 			f.write('\n')
 			f.write('Wotan and VPR agree in ' + str(agree_cases) + '/' + str(total_cases) + ' pairwise comparisons\n')
+			f.write(str(agree_within_tolerance) + '/' + str(total_cases) + ' cases agree within VPR minW tolerance of ' + str(vpr_tolerance))
 
 
 #Contains dictionaries of architectures that can be used for Wotan and VPR 
@@ -1472,11 +1476,25 @@ def read_file_into_string_list(file_path):
 	with open(file_path) as f:
 		string_list = f.readlines()
 	
+	#remove leading/trailing whitespace from strings
 	for string in string_list:
 		ind = string_list.index(string)
 		string_list[ind] = string_list[ind].strip()
 	
 	return string_list
+
+#reads each line in a file into a 2d list of strings. each string is split into a list of strings with spaces/tabs as delimiters
+def read_file_into_split_string_list(file_path):
+	split_string_list = []
+	with open(file_path) as f:
+		split_string_list = f.readlines()
+
+	#now remove leading/trailing whitespace and split strings
+	for string in split_string_list:
+		ind = split_string_list.index(string)
+		split_string_list[ind] = split_string_list[ind].strip().split()
+
+	return split_string_list
 
 
 #compares the test suites to each other, and returns a list of 
@@ -1607,9 +1625,9 @@ def my_custom_arch_pair_list(arch_dictionaries):
 #returns the number of pairwise comparisons where wotan ordering agrees with vpr ordering.
 #basically match every architecture against every other architecture for wotan, and then see if this pairwise odering
 #agrees with VPR.
-# - assumed that architectures are ordered best to worst
-# - assumed that both ordered lists contain strings describing the architecture
-def compare_wotan_vpr_arch_orderings(wotan_ordering, vpr_ordering):
+# - assumed that architectures are ordered best to worst. first entry is architecture name, second entry is architecture 'score' (min W for VPR)
+def compare_wotan_vpr_arch_orderings(wotan_ordering, vpr_ordering, 
+                                     vpr_tolerance=2):			#Wotan predictions always treated as correct for architectures within specified VPR score tolerance
 
 	#make sure both ordered lists are the same size
 	if len(wotan_ordering) != len(vpr_ordering):
@@ -1618,28 +1636,37 @@ def compare_wotan_vpr_arch_orderings(wotan_ordering, vpr_ordering):
 
 	total_cases = 0
 	agree_cases = 0
+	agree_within_tolerance = 0
 	
 	i = 0
 	while i < len(wotan_ordering)-1:
 		j = i+1
 		while j < len(wotan_ordering):
-			arch_one = wotan_ordering[i]
-			arch_two = wotan_ordering[j]
+			arch_one = wotan_ordering[i][0]
+			arch_two = wotan_ordering[j][0]
 
 			#now get the index of these two arch points in the vpr ordered list. since the lists are sorted from best to worst,
 			#a lower index means a better architecture
-			vpr_ind_one = vpr_ordering.index(arch_one)
-			vpr_ind_two = vpr_ordering.index(arch_two)
+			vpr_ind_one, dummy = index_2d(vpr_ordering, arch_one)
+			vpr_ind_two, dummy = index_2d(vpr_ordering, arch_two)
+
+			vpr_score_one = float(vpr_ordering[ vpr_ind_one ][1])
+			vpr_score_two = float(vpr_ordering[ vpr_ind_two ][1])
 
 			if vpr_ind_one < vpr_ind_two:
 				agree_cases += 1
+				agree_within_tolerance += 1
+			elif abs(vpr_score_one - vpr_score_two) <= vpr_tolerance:
+				agree_within_tolerance += 1
+			else:
+				print('Disagreed with VPR ordering:\t' + vpr_ordering[vpr_ind_one][0] + ' (' + str(vpr_score_one) + ') VS ' + vpr_ordering[vpr_ind_two][0] + ' (' + str(vpr_score_two) + ')')
 
 			total_cases += 1
 			j += 1
 
 		i += 1
 
-	return (agree_cases, total_cases)
+	return (agree_cases, agree_within_tolerance, total_cases)
 
 
 #returns a hard-coded list of Arch_Point_Info elements (use my_custom_arch_pair_list for pairwise comparisons)

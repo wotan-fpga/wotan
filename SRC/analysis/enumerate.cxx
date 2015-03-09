@@ -29,10 +29,11 @@ static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_n
 void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, 
                           e_traversal_dir traversal_dir, int max_path_weight, User_Options *user_opts, void *user_data){
 
-	/* increment node demand */
+	/* increment node demand during forward traversal only */
 	if (traversal_dir == FORWARD_TRAVERSAL){
-		/* increment node demand of all nodes except SOURCE & SINK */
+		/* Increment demand of nodes based on paths enumerated through them */
 		e_rr_type node_type = rr_node[popped_node].get_rr_type();
+
 		//Note: I added OPIN and IPIN checks below because otherwise high opin demand skews comparisons (I think) unfairly
 		//	away from opin-equivalent architectures. (see commit 8392b21)
 		if (node_type != SOURCE && node_type != SINK && node_type != OPIN && node_type != IPIN){
@@ -41,7 +42,10 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
 			rr_node[popped_node].increment_demand( demand_contribution );
 
-			/* TODO: comment */
+			/* It is possible to keep a history of how many paths there are connection each source/sink with the
+			   nearby nodes. This path count history can be used to later subtract the demand due to a source/sink pair
+			   (from nodes being traversed) when analyzing *that specific* source sink pair. Here we make a record
+			   of this node's demand that is due to this source/sink pair */
 			if (user_opts->keep_path_count_history){
 				e_rr_type type = rr_node[popped_node].get_rr_type();
 				if (type == OPIN || type == IPIN || type == CHANX || type == CHANY){
@@ -51,7 +55,8 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			}
 		}
 
-		/* add to existing count of the number of routing nodes (CHANX/CHANY/IPIN/OPIN) in the legal subgraph */
+		/* add to existing count of the number of routing nodes (CHANX/CHANY/IPIN/OPIN) in the legal subgraph
+		   (this is used for reliability polynomial computations) */
 		Enumerate_Structs *enumerate_structs = (Enumerate_Structs *)user_data;
 		int popped_node_weight = rr_node[popped_node].get_weight();
 		if ( ss_distances[popped_node].is_legal(popped_node_weight, max_path_weight) ){
@@ -60,7 +65,6 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			}
 		}
 	}
-
 }
 
 /* Called when topological traversal is iterateing over a node's children */

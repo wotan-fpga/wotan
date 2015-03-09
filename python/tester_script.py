@@ -29,6 +29,9 @@ vpr_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
 arch_dictionaries = wt.Archs(wotan_archs, vpr_archs)
 
 
+############ "Golden" architecture ordering ############
+vpr_ordering_6LUT = wotan_path + '/python/6LUT_vpr_ordering.txt'
+vpr_ordering_4LUT = wotan_path + '/python/4LUT_vpr_ordering.txt'
 
 
 ############ Wotan Labels and Regex Expressions ############
@@ -263,11 +266,18 @@ tester = wt.Wotan_Tester(
 
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
-arch_list = wt.my_custom_archs_list(arch_dictionaries)
-vpr_arch_ordering = wt.read_file_into_string_list(wotan_path + '/python/6LUT_vpr_ordering.txt')
+#arch_list = wt.my_custom_archs_list(arch_dictionaries)
+vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
+arch_list = [wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering]		#el[0] represents the arch point as a string
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
+
+
+#Test code:
+#wotan_arch_ordering = wt.read_file_into_split_string_list(wotan_path + '/python/6LUT_wotan_ordering08.txt')
+#agree, agree_tolerance, total = wt.compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance=1)
+#print('agree: ' + str(agree) + '  agree_tolerance: ' + str(agree_tolerance) + '  total: ' + str(total))
 
 
 ### Sweep on architecture over a range of channel widths
