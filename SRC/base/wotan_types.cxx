@@ -37,7 +37,7 @@ User_Options::User_Options(){
 
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */
-	this->ipin_probability = 0.0;
+	this->ipin_probability = 0.000001;
 	this->opin_probability = 0.6;
 
 	/* length probabilities can be initialized from a file in the future, but for now set them
