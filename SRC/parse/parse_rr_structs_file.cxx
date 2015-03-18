@@ -545,6 +545,7 @@ void initialize_reverse_node_edges_and_switches( Routing_Structs *routing_struct
 
 	int num_nodes = routing_structs->get_num_rr_nodes();
 
+	/* vector of vectors to hold incoming edges and switches for each node */
 	vector< vector<int> > inc_switches, inc_edges;
 	inc_switches.assign(num_nodes, vector<int>());
 	inc_edges.assign(num_nodes, vector<int>());
@@ -576,6 +577,8 @@ void initialize_reverse_node_edges_and_switches( Routing_Structs *routing_struct
 		}
 
 		int num_inc_edges = (int)inc_edges[inode].size();
+
+		rr_node->free_in_edges_and_switches();
 
 		if (num_inc_edges > 0 && rr_node->get_num_in_edges() == UNDEFINED){
 			/* allocate the incoming switches/edges for this node */

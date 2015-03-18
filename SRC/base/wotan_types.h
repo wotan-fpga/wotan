@@ -32,6 +32,7 @@ enum e_direction{
    Names for printing are set in the g_rr_type_string variable */
 enum e_rr_type{
 	SOURCE = 0,	/* a signal source */
+	//VIRTUAL_SOURCE,	/* a virtual signal source -- to be placed on ipins to account for fanout */
 	SINK,		/* a signal sink */
 	IPIN,		/* input pin on a block */
 	OPIN,		/* an output pin on a block */
@@ -270,9 +271,11 @@ private:
 	float ***source_sink_path_history;	//[0..radius][0..circumference-1][0..num_source/sinks -1]
 	int path_count_history_radius;
 
-	/* a hack that allows paths to be enumerated "out" of ipins -- create a source node for each ipin and mark
-	   the index of that node here (this node is not marked in rr_node_indices or any other structure) */
-	int ipin_source_node_ind;
+	/* a hack that allows paths to be enumerated out of non-source nodes -- a virtual source node can be created to connect to some
+	   subset of predecessors of this node which can be useful for things like accounting for fanout (by enumerating paths backward
+	   through ipins essentially).
+	   this variable marks the index of the corresponding virtual source. */
+	int virtual_source_node_ind;
 
 	pthread_mutex_t my_mutex;
 
@@ -297,19 +300,20 @@ public:
 	void alloc_source_sink_path_history(int num_lb_sources_and_sinks);
 
 	/* freeing functions */
+	void free_in_edges_and_switches();
 	void free_allocated_members();
 
 	/* set methods */
 	void clear_demand();
 	void increment_demand(double);
-	void set_ipin_source_node_ind(int);
+	void set_virtual_source_node_ind(int);
 	void set_weight();
 
 	/* get methods */
 	short get_num_in_edges() const;
-	double get_demand(User_Options*) const;		/* get demand of node */
-	short get_weight() const;					/* returns weight of this node */ 
-	int get_ipin_source_node_ind() const;
+	double get_demand(User_Options*) const;
+	short get_weight() const;
+	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
 	   the specified target node is either the source or sink of a connection that

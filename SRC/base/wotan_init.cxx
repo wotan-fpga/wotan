@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
+#include <set>
 #include "wotan_init.h"
 #include "wotan_types.h"
 #include "globals.h"
@@ -27,9 +28,9 @@ static void check_setup( User_Options *user_opts, Arch_Structs *arch_structs, Ro
 static void wotan_print_usage();
 /* Prints intro title for the tool */
 static void wotan_print_title();
-/* creates a source node for every ipin node and links it to the nodes which connect into the ipin.
-   these new sources allow for (in effect) enumerating paths from ipins */
-void create_ipin_sources(Routing_Structs *routing_structs);
+/* creates a virtual source node for every sink node and links it to the nodes which connect into its ipins.
+   these new sources allow for (in effect) enumerating paths from ipins while accounting for input pin equivalence */
+void create_virtual_sources(Routing_Structs *routing_structs);
  
 
 
@@ -55,11 +56,12 @@ void wotan_init(int argc, char **argv, User_Options *user_opts, Arch_Structs *ar
 
 	/* if Wotan structures are initialized from a structures file dumped by VPR, then Wotan 
 	   structures aren't complete just yet. need to allocate and set incoming edges for each node.
-	   Do this for ipins first, and then for the rest of the nodes later */
-	initialize_reverse_node_edges_and_switches(routing_structs, (int)IPIN); 
+	   Do this for sinks first, and then for the rest of the nodes later
+	   	- Virtual sources are created for sinks, 2nd step necessary to account for those newly-created virtual sources */
+	initialize_reverse_node_edges_and_switches(routing_structs, UNDEFINED); 
 
-	/* create source nodes for all ipins -- this allows (in effect) enumerating of paths from ipins */
-	create_ipin_sources(routing_structs);
+	/* create virtual sources for all sinks -- this allows (in effect) enumerating of paths from ipins */
+	create_virtual_sources(routing_structs);
 
 	/* all nodes */
 	initialize_reverse_node_edges_and_switches(routing_structs, UNDEFINED); 
@@ -222,8 +224,8 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			float opin_demand;
 			ss >> opin_demand;
 
-			if (opin_demand <= 0){
-				WTHROW(EX_INIT, "Expected opin demand to be > 0. Got " << 
+			if (opin_demand < 0){
+				WTHROW(EX_INIT, "Expected opin demand to be >= 0. Got " << 
 						opin_demand);
 			}
 
@@ -343,47 +345,89 @@ static void check_setup( User_Options *user_opts, Arch_Structs *arch_structs, Ro
 	}
 }
 
-/* creates a source node for every ipin node and links it to the nodes which connect into the ipin.
-   these new sources allow for (in effect) enumerating paths from ipins */
-void create_ipin_sources(Routing_Structs *routing_structs){
+
+/* creates a virtual source node for every sink node and links it to the nodes which connect into its ipins.
+   these new sources allow for (in effect) enumerating paths from ipins while accounting for input pin equivalence */
+void create_virtual_sources(Routing_Structs *routing_structs){
 	int num_nodes = routing_structs->get_num_rr_nodes();
 
 	t_rr_node &rr_node = routing_structs->rr_node;
 
-	/* for every rr node */
+	/* find and act on sink nodes */
 	for (int inode = 0; inode < num_nodes; inode++){
-		/* skip nodes that aren't ipins */
-		if (rr_node[inode].get_rr_type() != IPIN){
+		/* skip nodes that aren't sinks */
+		if (rr_node[inode].get_rr_type() != SINK){
 			continue;
 		}
-		
-		/* some properties of the ipin to be copied */
-		int num_in_edges = rr_node[inode].get_num_in_edges();
-		short x1, y1, x2, y2;
-		x1 = rr_node[inode].get_xlow();
-		y1 = rr_node[inode].get_ylow();
-		x2 = rr_node[inode].get_xhigh();
-		y2 = rr_node[inode].get_yhigh();
 
-		/* create a source node and add it to the rr_node list */
+		RR_Node &sink_node = rr_node[inode];	//note if rr_node struct is changed this might get invalidated...
+
+		/* some properties of the sink to be copied */
+		int num_in_edges_sink = sink_node.get_num_in_edges();
+		int ptc = sink_node.get_ptc_num();
+		short x1, y1, x2, y2;
+		x1 = sink_node.get_xlow();
+		y1 = sink_node.get_ylow();
+		x2 = sink_node.get_xhigh();
+		y2 = sink_node.get_yhigh();
+
+		/* create a virtual source that will have outgoing edges to those chanx/chany nodes immediately reachable (backwards) by the sink (through ipins) */
 		RR_Node new_node;
 		new_node.set_rr_type(SOURCE);
 		new_node.set_coordinates(x1, y1, x2, y2);
+		new_node.set_ptc_num(ptc);
 
-		if (num_in_edges > 0){
-			new_node.alloc_out_edges_and_switches(num_in_edges);
+		if (num_in_edges_sink <= 0){
+			WTHROW(EX_INIT, "Found sink node (" << inode << ") with no incoming edges");
 		}
 
-		/* copy the input edges of the ipin to the output edges of this source */
-		for (int iedge = 0; iedge < num_in_edges; iedge++){
-			new_node.out_edges[iedge] = rr_node[inode].in_edges[iedge];
+		/* unique channel node indices reachable (backwards) by the sink (through ipins) */
+		set<int> channel_nodes;
+
+		/* iterate over each ipin connecting into the sink. want to mark the nodes that connect into the ipins */
+		int node_ind;
+		for (int iedge_sink = 0; iedge_sink < num_in_edges_sink; iedge_sink++){
+			node_ind = sink_node.in_edges[ iedge_sink ];
+			RR_Node &ipin_node = rr_node[ node_ind ];
+
+			/* skip non-ipin nodes */
+			if (ipin_node.get_rr_type() != IPIN){
+				continue;
+			}
+
+			int *ipin_edges = ipin_node.in_edges;
+			int num_ipin_edges = ipin_node.get_num_in_edges();
+
+			//cout << "ipin: " << node_ind << endl;
+
+			/* mark unique nodes which connect into the ipin */
+			for (int iedge_ipin = 0; iedge_ipin < num_ipin_edges; iedge_ipin++){
+				node_ind = ipin_edges[iedge_ipin];
+
+				channel_nodes.insert( node_ind );
+			}
 		}
+
+		/* we have found unique nodes which connect into the ipins (that then connect into the sink). add these nodes as out-edges for
+		   our new virtual source */
+		int num_channel_nodes = (int)channel_nodes.size();
+		new_node.alloc_out_edges_and_switches( num_channel_nodes );
+		int iedge = 0;
+		for ( int chan_node_ind : channel_nodes ){
+			new_node.out_edges[iedge] = chan_node_ind;
+			iedge++;
+		}
+
+		//cout << " added " << num_channel_nodes << " edges" << endl;
 		
-		/* and now insert this new node into the rr_node structure */
+		/* insert new node into the rr_node structure */
 		rr_node.push_back(new_node);
-		int new_node_index = (int)rr_node.size() - 1;
+		int new_node_index = (int)rr_node.size()-1;
 
-		/* mark the ipin node with the index of this new source node */
-		rr_node[inode].set_ipin_source_node_ind( new_node_index );
+		//cout << "\tnew node: " << new_node_index << " " << x1 << ", " << y1 << " " << x2 << ", " << y2 << endl;
+
+		/* mark the sink node with the index of this new virtual source */
+		rr_node[inode].set_virtual_source_node_ind( new_node_index );		//using rr_node instead of sink_node reference because rr_node vector changed
 	}
 }
+

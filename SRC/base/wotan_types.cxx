@@ -9,6 +9,7 @@ using namespace std;
 /* this has to exactly match e_rr_type */
 const string g_rr_type_string[NUM_RR_TYPES]{
 	"SOURCE",
+	//"VIRTUAL_SOURCE",
 	"SINK",
 	"IPIN",
 	"OPIN",
@@ -53,7 +54,7 @@ User_Options::User_Options(){
 	this->length_probabilities[8] = 0.015;
 	this->length_probabilities[9] = 0.01;
 }
-/*==== User Options Class ====*/
+/*==== END User Options Class ====*/
 
 /*==== Analysis_Settings Class ====*/
 Analysis_Settings::Analysis_Settings(){
@@ -146,7 +147,7 @@ void Analysis_Settings::alloc_and_set_test_tile_coords(Arch_Structs *arch_struct
 int Analysis_Settings::get_max_path_weight(int conn_length){
 	/* this is a provisional scheme; will probably change later. but for now will set max
 	   path weight to give some flexibility in enumerating paths of the connection */
-	int max_path_weight = 18 + conn_length*1.3;
+	int max_path_weight = 15 + conn_length*1.3;
 	return max_path_weight;
 }
 /*==== END Analysis_Settings Class ====*/
@@ -331,7 +332,7 @@ RR_Node::RR_Node(){
 	this->num_lb_sources_and_sinks = UNDEFINED;
 	this->path_count_history_radius = UNDEFINED;
 
-	this->ipin_source_node_ind = UNDEFINED;
+	this->virtual_source_node_ind = UNDEFINED;
 
 	pthread_mutex_init(&this->my_mutex, NULL);
 
@@ -381,16 +382,23 @@ void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
 	}
 }
 
+/* freen in-edges and switches */
+void RR_Node::free_in_edges_and_switches(){
+	delete [] this->in_edges;
+	delete [] this->in_switches;
+	this->in_edges = NULL;
+	this->in_switches = NULL;
+
+	this->num_in_edges = UNDEFINED;
+}
+
 /* frees allocated members. extends the parent function of the same name */
 void RR_Node::free_allocated_members(){
 	/* call the parent function */
 	RR_Node_Base::free_allocated_members();
 
 	/* free edges and switches structures */
-	delete [] this->in_edges;
-	delete [] this->in_switches;
-	this->in_edges = NULL;
-	this->in_switches = NULL;
+	this->free_in_edges_and_switches();
 
 	/* free path count history structure */
 	if (this->path_count_history_radius > 0){
@@ -444,12 +452,9 @@ void RR_Node::set_weight(){
 	this->weight = my_weight;
 }
 
-/* if this node is an ipin, sets the source node index corresponding to it -- used for (in effect) enumerating paths out of ipins */
-void RR_Node::set_ipin_source_node_ind(int node_ind){
-	if (this->get_rr_type() != IPIN){
-		WTHROW(EX_INIT, "Attempted to set 'ipin_source_node_ind' field for a node that is not an ipin");
-	}
-	this->ipin_source_node_ind = node_ind;
+/* sets the index of the virtual source node corresponding to this node. can be used for enumerating paths from non-source nodes */
+void RR_Node::set_virtual_source_node_ind(int node_ind){
+	this->virtual_source_node_ind = node_ind;
 }
 
 /* returns node demand */
@@ -482,13 +487,9 @@ short RR_Node::get_weight() const{
 	return this->weight;
 }
 
-/* if this node is an ipin, returns the source node index corresponding to it -- used for (in effect) enumerating paths out of ipins.
-   calling this for nodes that aren't ipins will throw an exception */
-int RR_Node::get_ipin_source_node_ind() const{
-	if (this->get_rr_type() != IPIN){
-		WTHROW(EX_INIT, "Attempted to get 'ipin_source_node_ind' field for a node that is not an ipin");
-	}
-	return this->ipin_source_node_ind;
+/* returns index of virtual source node corresponding to this node */
+int RR_Node::get_virtual_source_node_ind() const{
+	return this->virtual_source_node_ind;
 }
 
 /* increments path count history at this node due to the specified target node.

@@ -144,7 +144,7 @@ static void handle_button_press(float x, float y, t_event_buttonPressed event_bu
 			int node_ind = f_routing_structs_ptr->rr_node_index[CHANX][tile_x][tile_y][wire_num];
 			double node_demand = f_routing_structs_ptr->rr_node[node_ind].get_demand(f_user_opts_ptr);
 
-			cout << "x: " << tile_x << "  y: " << tile_y << "  wire num: " << wire_num << "  rr node: " << node_ind << endl; 
+			//cout << "x: " << tile_x << "  y: " << tile_y << "  wire num: " << wire_num << "  rr node: " << node_ind << endl; 
 
 			/* display demand */
 			stringstream ss;
