@@ -230,6 +230,24 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			}
 
 			user_opts->opin_probability = opin_demand;
+		} else if ( strcmp(argv[iopt], "-demand_multiplier") == 0 ){
+			/* sets demand multiplier according to the specified value */
+			iopt++;
+
+			if (iopt >= argc){
+				WTHROW(EX_INIT, "Expected an argument for the -demand_multiplier option");
+			}
+	
+			stringstream ss;
+			ss << argv[iopt];
+			float demand_multiplier;
+			ss >> demand_multiplier;
+
+			if (demand_multiplier <= 0){
+				WTHROW(EX_INIT, "Expected demand multiplier to be > 0. Got " << demand_multiplier);
+			}
+
+			user_opts->demand_multiplier = demand_multiplier;
 		} else if ( strcmp(argv[iopt], "-nodisp") == 0 ){
 			/* no graphics */
 			user_opts->nodisp = true;
@@ -282,6 +300,8 @@ static void wotan_print_usage(){
 
 	cout << "\t-use_routing_node_demand: if specified, routing nodes (CHANX/CHANY) will be treated as having the specified demand; nodes of other" << endl;
 	cout << "\t\ttypes will be treated as having a demand of 0 (disabled by default)" << endl << endl;
+
+	cout << "\t-demand_multiplier: if specified this scaling factor will be applied to node demands (except ipin/opin/source/sink)" << endl << endl;
 
 	cout << "\t-nodisp: if specified, graphics will be disabled (graphics are enabled by default)" << endl << endl;
 }
@@ -398,8 +418,6 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 			int *ipin_edges = ipin_node.in_edges;
 			int num_ipin_edges = ipin_node.get_num_in_edges();
 
-			//cout << "ipin: " << node_ind << endl;
-
 			/* mark unique nodes which connect into the ipin */
 			for (int iedge_ipin = 0; iedge_ipin < num_ipin_edges; iedge_ipin++){
 				node_ind = ipin_edges[iedge_ipin];
@@ -418,13 +436,9 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 			iedge++;
 		}
 
-		//cout << " added " << num_channel_nodes << " edges" << endl;
-		
 		/* insert new node into the rr_node structure */
 		rr_node.push_back(new_node);
 		int new_node_index = (int)rr_node.size()-1;
-
-		//cout << "\tnew node: " << new_node_index << " " << x1 << ", " << y1 << " " << x2 << ", " << y2 << endl;
 
 		/* mark the sink node with the index of this new virtual source */
 		rr_node[inode].set_virtual_source_node_ind( new_node_index );		//using rr_node instead of sink_node reference because rr_node vector changed
