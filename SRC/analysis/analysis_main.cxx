@@ -42,7 +42,12 @@ using namespace std;
 #define WORST_NODE_DEMAND_PERCENTILE 0.05
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
-#define WORST_ROUTABILITY_PERCENTILE 0.10
+#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.5
+#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.5
+
+/* with what weights should driver & fanout components of the routability metric be combined */
+#define DRIVER_PROB_WEIGHT 0.4
+#define FANOUT_PROB_WEIGHT 0.6
 
 
 
@@ -126,15 +131,19 @@ public:
 	pthread_mutex_t thread_mutex;
 
 	/* maximum possible total weighted probability is ALL connections have a 100% chance of routing (used to normalize analysis) */
-	double max_possible_total_prob;
+	double max_possible_total_prob_drivers;
+	double max_possible_total_prob_fanout;
 
 	/* total weighted probability over all connections */
-	double total_prob;
+	double total_prob_drivers;
+	double total_prob_fanout;
 
 	/* used to analyze routability by looking at only x% worst possible (least routable) connections at
 	   each length. the idea is that bad routability of a minor fraction of all connections is sufficient
 	   to make an architecture unroutable */
-	vector< t_lowest_probs_pq > lowest_probs_pqs;
+	vector< t_lowest_probs_pq > lowest_probs_pqs_drivers;	/* for paths enumerated from drivers (i.e. regular sources + opins) */
+	vector< t_lowest_probs_pq > lowest_probs_pqs_fanout;	/* for paths enumerated for fanout purposes (via virtual sources */
+
 
 	/* total number of connections that we WANT to analyze */
 	int desired_conns;
@@ -143,8 +152,10 @@ public:
 
 	/* constructor to initialize constituent variables to 0 */
 	Analysis_Results(){
-		this->max_possible_total_prob = 0;
-		this->total_prob = 0;
+		this->max_possible_total_prob_drivers = 0;
+		this->max_possible_total_prob_fanout = 0;
+		this->total_prob_drivers = 0;
+		this->total_prob_fanout = 0;
 		this->desired_conns = 0;
 		this->num_conns = 0;
 	}
@@ -257,8 +268,8 @@ int get_num_sinks(int sink_node_ind, t_rr_node &rr_node, Physical_Type_Descripto
 int get_num_sources(int source_node_ind, t_rr_node &rr_node, Physical_Type_Descriptor &fill_block_type);
 
 /* function for a thread to increment the probability metric */
-void increment_probability_metric( float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
-				int num_subsources, int num_subsinks );
+void increment_probability_metric(float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
+				int num_subsources, int num_subsinks, e_pin_type source_pin_type);
 /* returns the number of CHANX/CHANY nodes in the graph */
 static int get_num_routing_nodes(t_rr_node &rr_node);
 /* returns a 'reachability' metric based on routing node demands */
@@ -266,8 +277,8 @@ static float node_demand_metric(User_Options *user_opts, t_rr_node &rr_node);
 /* returns from_x/to_x/from_y/to_y iteration limits of a 'core' FPGA region, according to CORE_OFFSET */
 static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size_x, int grid_size_y, int *from_x, int *from_y, int *to_x, int *to_y);
 /* currently returns the total number of connections at each connection length <= maximum connection length */
-static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *routing_structs, Arch_Structs *arch_structs, 
-			vector<int> &conns_at_length);
+static void get_conn_length_stats(User_Options *user_opts, Analysis_Settings *analysis_settings, Routing_Structs *routing_structs, 
+                        Arch_Structs *arch_structs, e_pin_type enumerate_type, vector<int> &conns_at_length);
 /* returns number of connections from tile at the specified coordinates at specified length */
 static int conns_at_distance_from_tile(int tile_x, int tile_y, int length, t_grid &grid, 
 				int grid_size_x, int grid_size_y, t_block_type &block_type, int fill_type_ind);
@@ -297,22 +308,27 @@ void run_analysis(User_Options *user_opts, Analysis_Settings *analysis_settings,
 static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs){
 
-	vector<int> conns_at_length;
+	vector<int> driver_conns_at_length;
+	vector<int> receiver_conns_at_length;
 
 	/* create the lowest probability priority queues (for pessimistic routability analysis of some percentile of worst connections at each length) */
-	f_analysis_results.lowest_probs_pqs.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
-	get_conn_length_stats(user_opts, routing_structs, arch_structs, conns_at_length);
+	f_analysis_results.lowest_probs_pqs_drivers.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
+	f_analysis_results.lowest_probs_pqs_fanout.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
+	get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, DRIVER, driver_conns_at_length);	//for paths enumerated *from* sources
+	get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, RECEIVER, receiver_conns_at_length);	//for paths enumerated *from* sinks (for fanout stuff)
 	for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
-		if (conns_at_length[ilen] == 0){
-			continue;
+		/* set the bounded priority queue entries limit w.r.t. to the "..._conns_at_length" stats */
+		if (driver_conns_at_length[ilen] > 0){
+			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS;
+			f_analysis_results.lowest_probs_pqs_drivers[ilen].set_properties( driver_entries_limit );
 		}
-		int entries_limit = conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE;
-
-		f_analysis_results.lowest_probs_pqs[ilen].set_properties( entries_limit );
+		if (receiver_conns_at_length[ilen] > 0){
+			int receiver_entries_limit = receiver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_FANOUT;
+			f_analysis_results.lowest_probs_pqs_fanout[ilen].set_properties( receiver_entries_limit );
+		}
 	}
-	
 
-	/* initialize mutex that will be used for synchronizing threads' updates to the probability metric */
+	/* initialize mutex that will be used for synchronizing threads' updates to shared variables */
 	pthread_mutex_init(&f_analysis_results.thread_mutex, NULL);
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
@@ -358,7 +374,6 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 			/* nothing */
 		}
 	}
-
 
 	/* allocate structures for getting source/sink distances */
 	t_nodes_visited nodes_visited;
@@ -470,7 +485,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		Coordinate tile_coord = (*it);
 
 		/* the user may have specified that only the core region of the FPGA is to be used for probability analysis. in that case
-		   probability analysis will be performed for all tiles that are within the square that is CORE_OFFSET tiles from the FPGA perimeter */
+		   probability analysis will be performed for all tiles that are within the region that is CORE_OFFSET tiles from the FPGA perimeter */
 		if (user_opts->analyze_core){
 			if (topological_mode == PROBABILITY){
 				int from_x, to_x, from_y, to_y;
@@ -504,27 +519,19 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 				}
 
 			} else if (pin_class->get_pin_type() == RECEIVER){
-				/* enumerating from ipins is Wotan's way of accounting for fanout, and this is slightly trickier.
-				   basically the ipin will be considered as a source (and no demands will be added to the ipin from
-				   the following enumeration), and the path enumeration from the ipin will start at the direct
-				   predecessors of the node (as opposed to the direct successors in the case of source nodes) */
+				/* enumerating from ipins is Wotan's way of accounting for fanout and this is slightly trickier.
+				   in wotan_init.cxx virtual sources were created for every sink and attached into the wires 
+				   that connect into the sink's ipins. these virtual sources are used to enumerate fanout paths */
 
-				/* traverse each ipin in the class -- we don't want to consider multiple ipins here as equivalent */
-				int num_ipins = (int)pin_class->pinlist.size();
+				int sink_node_index = routing_structs->rr_node_index[SOURCE][tile_coord.x][tile_coord.y][iclass];
+				int virtual_source_ind = routing_structs->rr_node[sink_node_index].get_virtual_source_node_ind();
 
-				for (int ipin = 0; ipin < num_ipins; ipin++){
-					int pin_index = pin_class->pinlist[ipin];
-
-					int source_node_index = routing_structs->rr_node_index[IPIN][tile_coord.x][tile_coord.y][pin_index];
-
-					thread_conn_info[ithread_sink].source_node_inds.push_back(source_node_index);
-					thread_conn_info[ithread_sink].tile_coords.push_back(tile_coord);
-					ithread_sink++;	
-					if (ithread_sink == num_threads){
-						ithread_sink = 0;
-					}
+				thread_conn_info[ithread_sink].source_node_inds.push_back(virtual_source_ind);
+				thread_conn_info[ithread_sink].tile_coords.push_back(tile_coord);
+				ithread_sink++;
+				if (ithread_sink == num_threads){
+					ithread_sink = 0;
 				}
-
 			} else {
 				WTHROW(EX_PATH_ENUM, "Unexpected pin type: " << pin_class->get_pin_type());
 			}
@@ -534,9 +541,11 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	/* launch the threads */
 	launch_pthreads(thread_conn_info, threads, num_threads);
 
+	
+	/* calculate metrics */
+
 	double total_demand = 0;
 	double squared_demand = 0;
-
 
 	/* calculate some node demand-related metrics */
 	int num_nodes = routing_structs->get_num_rr_nodes();
@@ -565,15 +574,43 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		cout << "Normalized squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
 	} else {
-		cout << "Opin demand: " << user_opts->opin_probability << endl;
+		float opin_prob = user_opts->opin_probability;
+		float ipin_prob = user_opts->ipin_probability;
 
-		/* print normalized probability results */
-		float worst_probabilities_metric = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs );
+		cout << "Demand multiplier: " << user_opts->demand_multiplier << endl;
+
 		cout.setf(ios::fixed);
 		cout.precision(4);
 
-		cout << "Total prob: " << f_analysis_results.total_prob / f_analysis_results.max_possible_total_prob << endl;
-		cout << "Pessimistic prob: " << worst_probabilities_metric / (f_analysis_results.max_possible_total_prob * WORST_ROUTABILITY_PERCENTILE) << endl;
+		/* compute the two parts of the routability metric (driver & fanout) */
+		float worst_probabilities_driver = 0;
+		float worst_probabilities_fanout = 0;
+		float driver_prob_metric = 0;
+		float fanout_prob_metric = 0;
+		if (opin_prob != 0){
+			worst_probabilities_driver = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs_drivers );
+			driver_prob_metric = worst_probabilities_driver / (f_analysis_results.max_possible_total_prob_drivers * WORST_ROUTABILITY_PERCENTILE_DRIVERS);
+		}
+
+		if (ipin_prob != 0){
+			worst_probabilities_fanout = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs_fanout );
+			fanout_prob_metric = worst_probabilities_fanout / (f_analysis_results.max_possible_total_prob_fanout * WORST_ROUTABILITY_PERCENTILE_FANOUT);
+		}
+
+		cout << "Driver metric: " << driver_prob_metric << endl;
+		cout << "Fanout metric: " << fanout_prob_metric << endl;
+
+		/* combine the two parts of the routability metric into a single number */
+		float driver_prob_weight = 1;
+		float fanout_prob_weight = 1;
+		if (opin_prob > 0 && ipin_prob > 0){
+			driver_prob_weight = DRIVER_PROB_WEIGHT;
+			fanout_prob_weight = FANOUT_PROB_WEIGHT;
+		}
+		
+		float routability_metric = (driver_prob_weight * driver_prob_metric) + (fanout_prob_weight * fanout_prob_metric);
+
+		cout << "Routability metric: " << routability_metric << endl;
 	}
 }
 
@@ -799,7 +836,7 @@ void* enumerate_paths_from_source( void *ptr ){
 }
 
 
-/* returns from_x/to_x/from_y/to_y iteration limits (inclusive) of a 'core' FPGA region, according to CORE_OFFSET */
+/* returns from_x/to_x/from_y/to_y iteration limits (inclusive) of a 'core' FPGA region that is CORE_OFFSET tiles away from the FPGA perimeter */
 static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size_x, int grid_size_y, int *from_x, int *from_y, int *to_x, int *to_y){
 
 	if (user_opts->analyze_core){
@@ -817,9 +854,9 @@ static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size
 }
 
 
-/* currently returns the total number of connections at each connection length <= maximum connection length */
-static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *routing_structs, Arch_Structs *arch_structs, 
-			vector<int> &conns_at_length){
+/* currently returns the total number of connections at each connection length <= maximum connection length */	//TODO: "pin_type" parameter?
+static void get_conn_length_stats(User_Options *user_opts, Analysis_Settings *analysis_settings, Routing_Structs *routing_structs, 
+                        Arch_Structs *arch_structs, e_pin_type enumerate_type, vector<int> &conns_at_length){
 
 	int max_conn_length = user_opts->max_connection_length;
 	t_grid &grid = arch_structs->grid;
@@ -838,7 +875,29 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 	int from_x, to_x, from_y, to_y;
 	get_prob_analysis_tile_region(user_opts, grid_size_x, grid_size_y, &from_x, &from_y, &to_x, &to_y);
 
-	/* over each tile of the FPGA as per above if-else */
+	/* calculate number of sources in a tile of fill type */	//TODO: this takes into account both opins and ipins. want to split this up
+	int num_tile_pins = fill_type->get_num_pins();
+	int num_tile_sources = 0;
+	for (int ipin = 0; ipin < num_tile_pins; ipin++){
+		/* skip global pins */
+		if (fill_type->is_global_pin[ipin]){
+			continue;
+		}
+
+		/* get type of this pin */
+		int pin_class_ind = fill_type->pin_class[ipin];
+		e_pin_type pin_type = fill_type->class_inf[pin_class_ind].get_pin_type();
+
+		if (pin_type == enumerate_type){
+			/* get probabiity of this pin being used as a source */
+			float pin_prob = analysis_settings->pin_probabilities[ipin];
+			if (pin_prob > 0){
+				num_tile_sources++;
+			}
+		}
+	}
+
+	/* iterate over the FPGA tiles as per 'get_prob_analysis_tile_region' */
 	for (int ix = from_x; ix <= to_x; ix++){
 		for (int iy = from_y; iy <= to_y; iy++){
 			int block_type_ind = grid[ix][iy].get_type_index();
@@ -850,16 +909,16 @@ static void get_conn_length_stats(User_Options *user_opts, Routing_Structs *rout
 				WTHROW(EX_PATH_ENUM, "Expected logic block type");
 			}
 			if (width_offset > 0 || height_offset > 0){
-				WTHROW(EX_PATH_ENUM, "Didn't expect logic block to have > 0 widht/height offset");
+				WTHROW(EX_PATH_ENUM, "Didn't expect logic block to have > 0 width/height offset");
 			}
 
-			/* it is assumed there is a source for each output pin.
-			   note that multiple sources can be contained in a single super-source */
-			int num_output_pins = fill_type->get_num_drivers();
+			///* it is assumed there is a source for each output pin.
+			//   note that multiple sources can be contained in a single super-source */
+			//int num_output_pins = fill_type->get_num_drivers();				//TODO: should really be looking at actual sources/sinks...
 
 			/* for each legal length */
 			for (int ilen = 1; ilen <= max_conn_length; ilen++){
-				conns_at_length[ilen] += num_output_pins * conns_at_distance_from_tile(ix, iy, ilen, grid, grid_size_x, grid_size_y,
+				conns_at_length[ilen] += num_tile_sources * conns_at_distance_from_tile(ix, iy, ilen, grid, grid_size_x, grid_size_y,
 				                                                                       block_type, fill_type_ind);
 			}
 		}
@@ -956,16 +1015,15 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	float length_prob = analysis_settings->length_probabilities[conn_length];
 	t_prob_list &pin_probs = analysis_settings->pin_probabilities;
 
+	/* if the length probability corresponding to this connection is 0, then this connection won't contribute
+	   anything to the routability metric -- no point looking at it */
+	if ( PROBS_EQUAL(length_prob, 0.0) ){
+		return;
+	}
+
 	/* get the fill type descriptor */
 	int fill_type_ind = arch_structs->get_fill_type_index();
 	Physical_Type_Descriptor &fill_block_type = arch_structs->block_type[fill_type_ind];
-
-	/* if the specified source node index is actually an ipin, get the node which corresponds
-	   to the ipin's source (was created for sake of path enumeration 'from' ipins (in effect) */
-	int adjusted_source_node_ind = source_node_ind;
-	if (rr_node[source_node_ind].get_rr_type() == IPIN){
-		adjusted_source_node_ind = routing_structs->rr_node[source_node_ind].get_ipin_source_node_ind();
-	}
 
 	//TODO: comment. the basic gist (as I remember it) is that a single source/sink can represent multiple
 	//	sources/sinks in reality (as in the case of pin equivalence). in that case the scaling factors during path
@@ -976,25 +1034,30 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	int num_sinks = get_num_sinks(sink_node_ind, rr_node, fill_block_type);
 	int num_sources = get_num_sources(source_node_ind, rr_node, fill_block_type);
 
-	float probability;
-	if (topological_mode == ENUMERATE){
-		probability = sum_of_source_probabilities;
-	} else {
-		//num_sinks = 1;			//FIXME. WHY 1???? this doesn't make sense... :(((((	commented out, but need to figure out original reason...
-		probability = one_pin_prob;
-	}
+	float source_probability;
+	//if (topological_mode == ENUMERATE){
+		source_probability = sum_of_source_probabilities;
+	//} else {
+	//	source_probability = one_pin_prob;
+	//}
 
 
 	if (topological_mode == ENUMERATE){
 		/* enumerate connection paths */
 
-		float scaling_factor_for_enumerate = (float)num_sinks * probability * length_prob / (float)number_conns_at_length;
+		float scaling_factor_for_enumerate = (float)num_sinks * (float)num_sources * source_probability * length_prob / (float)number_conns_at_length;
 		enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 							routing_structs, ss_distances, node_topo_inf, conn_length, 
 							nodes_visited, user_opts,
 							scaling_factor_for_enumerate);
 
 	} else if (topological_mode == PROBABILITY){
+		/* check whether this source node corresponds to pins of 'driver' or 'receiver' type to figure out which part of the reachability
+		   metric this connection applies to */
+		int source_ptc = rr_node[source_node_ind].get_ptc_num();
+		Pin_Class &source_pin_class = fill_block_type.class_inf[source_ptc];
+		e_pin_type source_pin_type = source_pin_class.get_pin_type();
+
 		/* estimate probability of connection being routable and increment the probability metric */
 		float probability_connection_routable = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 							routing_structs, ss_distances, node_topo_inf, conn_length, 
@@ -1002,17 +1065,24 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 
 		/* increment the probability metric */
 		if (probability_connection_routable >= 0){
-			float scaling_factor = (float)num_sinks * (float)num_sources * length_prob / (float)number_conns_at_length;
+			float scaling_factor = (float)num_sinks * (float)num_sources * source_probability * length_prob / (float)number_conns_at_length;
 			float probability_increment = scaling_factor * probability_connection_routable;
 
 			/* increment probability metric */
 			int num_subsources = num_sources;
 			int num_subsinks = num_sinks;
-			increment_probability_metric( probability_increment, conn_length, adjusted_source_node_ind, sink_node_ind, num_subsources, num_subsinks );
+			increment_probability_metric(probability_increment, conn_length, source_node_ind, sink_node_ind, num_subsources, num_subsinks, source_pin_type);
 
 			/* add this connection's ideal probability to the running total (for normalizing later) */
 			pthread_mutex_lock(&f_analysis_results.thread_mutex);
-			f_analysis_results.max_possible_total_prob += scaling_factor * 1.0;	//1.0 because that's the max probability a connection can have
+			if (source_pin_type == DRIVER){
+				f_analysis_results.max_possible_total_prob_drivers += scaling_factor * 1.0;	//1.0 because that's the max probability a connection can have
+			} else if (source_pin_type == RECEIVER){
+				f_analysis_results.max_possible_total_prob_fanout += scaling_factor * 1.0;
+				//cout << probability_connection_routable << " " << probability_increment << endl;
+			} else {
+				WTHROW(EX_PATH_ENUM, "Unexpected source pin type: " << source_pin_type);
+			}
 			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 		} else {
 			WTHROW(EX_PATH_ENUM, "Got negative connection probability: " << probability_connection_routable);
@@ -1042,6 +1112,7 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
 					nodes_visited, &max_path_weight, &min_dist);
 
+	/* perform path enumeration */
 	if (max_path_weight > 0 && min_dist > 0){
 
 		Enumerate_Structs enumerate_structs;
@@ -1608,16 +1679,10 @@ void get_sum_of_source_probabilities(int source_node_ind, t_rr_node &rr_node, t_
 		if (one_pin_prob != NULL){
 			(*one_pin_prob) = this_pin_prob;
 		}
-	} else if (node_type == IPIN){
-		/* if an ipin is the source of path enumeration, then we can simply get the 
-		   probability of this pin */
-		(*sum_probabilities) = pin_probs[node_ptc];
-		if (one_pin_prob != NULL){
-			(*one_pin_prob) = pin_probs[node_ptc];
-		}
 	} else {
 		WTHROW(EX_PATH_ENUM, "Unexpected node type: " << rr_node[source_node_ind].get_rr_type_string());
 	}
+	//cout << "node: " << source_node_ind << "  sum probabilities: " << *sum_probabilities << endl;
 }
 
 /* returns number of sinks corresponding to the specified super-sink node */
@@ -1641,7 +1706,7 @@ int get_num_sources(int source_node_ind, t_rr_node &rr_node, Physical_Type_Descr
 	int num_sources = 0;
 
 	if (rr_node[source_node_ind].get_rr_type() != SOURCE){
-		WTHROW(EX_PATH_ENUM, "Expected node to be a source. Got node of type: " << rr_node[source_node_ind].get_rr_type());
+		WTHROW(EX_PATH_ENUM, "Expected node to be a source. Got node of type: " << rr_node[source_node_ind].get_rr_type_string());
 	}
 
 	int node_ptc = rr_node[source_node_ind].get_ptc_num();
@@ -1653,28 +1718,43 @@ int get_num_sources(int source_node_ind, t_rr_node &rr_node, Physical_Type_Descr
 }
 
 /* function for a thread to increment the probability metric */
-void increment_probability_metric( float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
-				int num_subsources, int num_subsinks ){
-	pthread_mutex_lock(&f_analysis_results.thread_mutex);
-	f_analysis_results.total_prob += probability_increment;
+void increment_probability_metric(float probability_increment, int connection_length, int source_node_ind, int sink_node_ind,
+				int num_subsources, int num_subsinks, e_pin_type source_pin_type){
 
-	static int gar = 0;
+	double *total_prob;
+	vector<t_lowest_probs_pq> *lowest_probs_pqs;
+
+	/* the routability metric may be broken up into more than one component.
+	   currently connections are analyzed separately from regular sources and 'virtual' sources which are
+	   attached alongside sinks and connect to the channel tracks from which the sink is immediately reachable (to account for fanout-like effects) */
+	if (source_pin_type == DRIVER){
+		total_prob = &f_analysis_results.total_prob_drivers;
+		lowest_probs_pqs = &f_analysis_results.lowest_probs_pqs_drivers;
+	} else if (source_pin_type == RECEIVER){
+		total_prob = &f_analysis_results.total_prob_fanout;
+		lowest_probs_pqs = &f_analysis_results.lowest_probs_pqs_fanout;
+
+		//cout << connection_length << " " << (*lowest_probs_pqs)[connection_length].size() << " " << probability_increment << endl;
+	} else {
+		WTHROW(EX_PATH_ENUM, "Unexpected pin type: " << source_pin_type);
+	}
+
+	pthread_mutex_lock(&f_analysis_results.thread_mutex);
+	*total_prob += probability_increment;
 	
 	/* account for multiple sources/sinks being present in a supersource/supersink */
 	int div_factor = num_subsources * num_subsinks;
 	float push_value = probability_increment / (float)div_factor;
 	for (int i = 0; i < div_factor; i++){
-		f_analysis_results.lowest_probs_pqs[connection_length].push( push_value );
-		gar++;
+		(*lowest_probs_pqs)[connection_length].push( push_value );
 	}
 
-	//cout << num_subsources << " " << num_subsinks << " " << gar << endl;
 	pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 }
 
 
 /* at each length, sums the probabilities of the x% worst possible connections */
-static float analyze_lowest_probs_pqs( vector< t_lowest_probs_pq > &lowest_probs_pqs){
+static float analyze_lowest_probs_pqs(vector<t_lowest_probs_pq> &lowest_probs_pqs){
 	float result = 0;
 
 	int num_lengths = (int)lowest_probs_pqs.size();

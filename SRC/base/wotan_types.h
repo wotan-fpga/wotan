@@ -32,6 +32,7 @@ enum e_direction{
    Names for printing are set in the g_rr_type_string variable */
 enum e_rr_type{
 	SOURCE = 0,	/* a signal source */
+	//VIRTUAL_SOURCE,	/* a virtual signal source -- to be placed on ipins to account for fanout */
 	SINK,		/* a signal sink */
 	IPIN,		/* input pin on a block */
 	OPIN,		/* an output pin on a block */
@@ -131,7 +132,6 @@ typedef std::vector< Node_Topological_Info > t_node_topo_inf;
 class User_Options{
 public:
 	bool nodisp;				/* specifies whether to do graphics or not */
-	//bool use_VPR_rr_structs;		/* set up Wotan based on a dumped VPR structures file */
 	e_rr_structs_mode rr_structs_mode;	/* Wotan's routing structures are read-in according to this mode */
 	std::string rr_structs_file;		/* path to file from which rr structures are to be read */
 	int max_connection_length;		/* maximum connection length to be considered during path enumeration */
@@ -145,10 +145,12 @@ public:
 
 	double ipin_probability;
 	double opin_probability;
+	double demand_multiplier;
 	t_prob_list length_probabilities;
 
 	User_Options();
 };
+
 
 /* A class used to pass around some settings specific to path enumeration & probability analysis.
    The contents of this class are either derived from the contents of the User_Options class, or hard-coded 
@@ -245,6 +247,7 @@ public:
 	void set_direction(e_direction);		/* set directionality of this node */
 };
 
+
 /* Derived from the RR_Node_Base class (based on the VPR rr node structure), this class adds functionality specifically required by Wotan */
 class RR_Node : public RR_Node_Base {
 private:
@@ -270,9 +273,11 @@ private:
 	float ***source_sink_path_history;	//[0..radius][0..circumference-1][0..num_source/sinks -1]
 	int path_count_history_radius;
 
-	/* a hack that allows paths to be enumerated "out" of ipins -- create a source node for each ipin and mark
-	   the index of that node here (this node is not marked in rr_node_indices or any other structure) */
-	int ipin_source_node_ind;
+	/* a hack that allows paths to be enumerated out of non-source nodes -- a virtual source node can be created to connect to some
+	   subset of predecessors of this node which can be useful for things like accounting for fanout (by enumerating paths backward
+	   through ipins essentially).
+	   this variable marks the index of the corresponding virtual source. */
+	int virtual_source_node_ind;
 
 	pthread_mutex_t my_mutex;
 
@@ -297,19 +302,20 @@ public:
 	void alloc_source_sink_path_history(int num_lb_sources_and_sinks);
 
 	/* freeing functions */
+	void free_in_edges_and_switches();
 	void free_allocated_members();
 
 	/* set methods */
 	void clear_demand();
 	void increment_demand(double);
-	void set_ipin_source_node_ind(int);
+	void set_virtual_source_node_ind(int);
 	void set_weight();
 
 	/* get methods */
 	short get_num_in_edges() const;
-	double get_demand(User_Options*) const;		/* get demand of node */
-	short get_weight() const;					/* returns weight of this node */ 
-	int get_ipin_source_node_ind() const;
+	double get_demand(User_Options*) const;
+	short get_weight() const;
+	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
 	   the specified target node is either the source or sink of a connection that
@@ -322,6 +328,7 @@ public:
 	   returns UNDEFINED if this node doesn't carry relevant path count info */
 	float get_path_count_history(RR_Node &target_node);
 };
+
 
 /* represents a switch used in the rr graph. Basically a copy of VPR's analogous structure */
 class RR_Switch_Inf{
@@ -355,6 +362,7 @@ public:
 	void set_mux_trans_size(float);
 	void set_buf_size(float);
 };
+
 
 /* Represents a set of equivalent pins within some physical block type */
 class Pin_Class{
@@ -436,7 +444,6 @@ public:
 };
 
 
-
 /* contains architecture structures */
 class Arch_Structs{
 private:
@@ -462,6 +469,7 @@ public:
 	void get_grid_size(int *x_size, int *y_size) const;	/* returns x and y sizes of the grid */
 	int get_num_block_types() const;			/* returns number of physical block types */
 };
+
 
 /* contains routing structures */
 class Routing_Structs{
@@ -535,6 +543,7 @@ public:
 	bool is_legal(int my_node_weight, int max_path_weight) const;
 };
 
+
 /* Represents a node that has been visited during topological graph traversal, but who's dependencies
    aren't fully satisfied (i.e. it still has parents which have not been visited).
    This structure is used to deal with graph cycles -- objects of this class are put on a sorted
@@ -560,6 +569,7 @@ public:
 	/* overload < for purposes of storing class objects in maps/sets */
 	bool operator < (const Node_Waiting &obj) const;
 };
+
 
 /* nodes have associated with them two bucket structures. one bucket structure is associated with a source and
    one with a sink (during path enumeration between a specific source/sink). the index of the bucket structure
@@ -604,7 +614,6 @@ public:
 	/* returns the probability of this node being unreachable from source (the node structures must contain probabilities instead of path counts) */
 	float get_probability_not_reachable(int my_node_weight, float my_node_probability) const;
 };
-
 
 
 /* a structure that contains topological traversal info for the associated node */

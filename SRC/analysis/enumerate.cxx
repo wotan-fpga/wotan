@@ -36,10 +36,15 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 
 		//Note: I added OPIN and IPIN checks below because otherwise high opin demand skews comparisons (I think) unfairly
 		//	away from opin-equivalent architectures. (see commit 8392b21)
-		if (node_type != SOURCE && node_type != SINK && node_type != OPIN && node_type != IPIN){
+		if (node_type != SOURCE && node_type != SINK /*&& node_type != OPIN && node_type != IPIN*/){
 			int node_weight = rr_node[popped_node].get_weight();
 			int dist_to_source = ss_distances[popped_node].get_source_distance();
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
+
+			/* apply the demand multiplier to this node if it is not of type OPIN/IPIN/SOURCE/SINK */
+			if (node_type != OPIN /*&& node_type != IPIN*/){
+				demand_contribution *= user_opts->demand_multiplier;
+			}
 			rr_node[popped_node].increment_demand( demand_contribution );
 
 			/* It is possible to keep a history of how many paths there are connection each source/sink with the
