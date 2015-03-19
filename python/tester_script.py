@@ -41,9 +41,10 @@ labels_Rel = (
 	'Total Demand',			#1
 	'Normalized Demand',		#2
 	'Normalized Square Demand',	#3
-	'Demand multiplier',		#4
-	'Total Prob',			#5
-	'Pessimistic Prob'		#6
+	'Demand Multiplier',		#4
+	'Driver Metric',		#5
+	'Fanout Metric',		#6
+	'Routability Metric'		#7
 )
 
 #regex for regular Wotan output
@@ -52,9 +53,10 @@ regex_Rel = (
 	'.*Total demand: (\d+\.*\d+).*',
 	'.*Normalized demand: (\d+\.\d+).*',
 	'.*Normalized squared demand: (\d+\.\d+).*',
-	'.*Opin demand: (\d*\.*\d+).*',
-	'.*Total prob: (\d+\.*\d+).*',
-	'.*Pessimistic prob: (\d+\.*\d*).*'
+	'.*Demand multiplier: (\d*\.*\d+).*',
+	'.*Driver metric: (\d+\.*\d+).*',
+	'.*Fanout metric: (\d+\.*\d+).*',
+	'.*Routability metric: (\d+\.*\d*).*'
 )
 
 
@@ -68,7 +70,7 @@ wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_stru
 wotan_opts = wotan_opts_normal
 
 #Test type variable applies when 'run_all_tests_sequentially' is used. It is not used for 'run_architecture_comparisons' (which are hard-coded for a specific test type already)
-test_type = 'binary_search_pessimistic_prob'
+test_type = 'binary_search_routability_metric'
 
 #index into labels_Rel & regex_Rel that determines which regex'd value will be plotted on a graph
 plot_index = 4
@@ -267,22 +269,16 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
 #arch_list = wt.my_custom_archs_list(arch_dictionaries)
-vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
-arch_list = [wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering]		#el[0] represents the arch point as a string
+vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_4LUT)
+arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 
 
-#Test code:
-#wotan_arch_ordering = wt.read_file_into_split_string_list(wotan_path + '/python/6LUT_wotan_ordering08.txt')
-#agree, agree_tolerance, total = wt.compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance=1)
-#print('agree: ' + str(agree) + '  agree_tolerance: ' + str(agree_tolerance) + '  total: ' + str(total))
-
-
 ### Sweep on architecture over a range of channel widths
-#arch_point = wt.Arch_Point_Info.from_str('len1_wilton_fcin0.75_fcout0.25_arch:4LUT-noequiv', arch_dictionaries)
-##arch_point = wt.Arch_Point_Info.from_str('len2_universal_fcin0.15_fcout0.35_arch:4LUT-noequiv', arch_dictionaries)
+##arch_point = wt.Arch_Point_Info.from_str('len1_universal_fcin0.15_fcout0.85_arch:4LUT-noequiv', arch_dictionaries)
+#arch_point = wt.Arch_Point_Info.from_str('len1_universal_fcin0.35_fcout0.1_arch:4LUT-noequiv', arch_dictionaries)
 #chan_sweep_results = tester.sweep_architecture_over_W(arch_point, np.arange(60, 110, 2).tolist())
 #print(chan_sweep_results)
 

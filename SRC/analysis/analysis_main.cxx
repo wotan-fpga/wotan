@@ -43,11 +43,11 @@ using namespace std;
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
 #define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.5
-#define WORST_ROUTABILITY_PERCENTILE_FANOUT 1.0
+#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.5
 
 /* with what weights should driver & fanout components of the routability metric be combined */
-#define DRIVER_PROB_WEIGHT 0.5
-#define FANOUT_PROB_WEIGHT 0.5
+#define DRIVER_PROB_WEIGHT 0.4
+#define FANOUT_PROB_WEIGHT 0.6
 
 
 
@@ -577,7 +577,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		float opin_prob = user_opts->opin_probability;
 		float ipin_prob = user_opts->ipin_probability;
 
-		cout << "Opin demand: " << opin_prob << endl;
+		cout << "Demand multiplier: " << user_opts->demand_multiplier << endl;
 
 		cout.setf(ios::fixed);
 		cout.precision(4);
@@ -596,9 +596,6 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 			worst_probabilities_fanout = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs_fanout );
 			fanout_prob_metric = worst_probabilities_fanout / (f_analysis_results.max_possible_total_prob_fanout * WORST_ROUTABILITY_PERCENTILE_FANOUT);
 		}
-
-		cout << "worst fanout prob: " << worst_probabilities_fanout << endl;
-		cout << "max fanout prob: " << f_analysis_results.max_possible_total_prob_fanout << endl;
 
 		cout << "Driver metric: " << driver_prob_metric << endl;
 		cout << "Fanout metric: " << fanout_prob_metric << endl;

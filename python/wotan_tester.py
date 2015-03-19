@@ -16,8 +16,7 @@ import sympy
 ###### Enums ######
 e_Test_Type = ('normal',
 		'binary_search_norm_demand',
-		'binary_search_total_prob',
-		'binary_search_pessimistic_prob'
+		'binary_search_routability_metric'
 		)
 
 #replacing enum with tuple above because burst.eecg doesn't have support for python3-enum or python-enum34
@@ -549,18 +548,18 @@ class Wotan_Tester:
 		return output
 
 
-	#performs binary search to adjust pin demand in wotan until the target metric is equal to the desired value within some tolerance.
-	#returns 3-tuple: (final target value, final pin demand, wotan output)
-	def search_for_wotan_pin_demand(self, wotan_opts, test_type,
+	#performs binary search to adjust demand multiplier in wotan until the target metric is equal to the desired value within some tolerance.
+	#returns 3-tuple: (final target value, final demand multiplier, wotan output)
+	def search_for_wotan_demand_multiplier(self, wotan_opts, test_type,
 				target = None, 
 				target_tolerance = None,
 				target_regex = None,
-				pin_demand_low = 0.0,
-				pin_demand_high = 10.0,
+				demand_mult_low = 0.0,
+				demand_mult_high = 2.5,
 				max_tries = 15):
 		
-		if '-opin_demand' in wotan_opts:
-			print('-pin_demand option already included in wotan_opts -- can\'t do binary search for pin demand')
+		if '-demand_multiplier' in wotan_opts:
+			print('-demand_multiplier option already included in wotan_opts -- can\'t do binary search for pin demand')
 			sys.exit()
 		
 		#true if increasing, false if decreasing
@@ -573,9 +572,9 @@ class Wotan_Tester:
 				target = 0.8
 			if not target_tolerance:
 				target_tolerance = 0.01 
-		elif test_type == 'binary_search_pessimistic_prob':
+		elif test_type == 'binary_search_routability_metric':
 			if not target_regex:
-				target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
+				target_regex = '.*Routability metric: (\d+\.*\d*).*'
 			if not target:
 				target = 0.3
 			if not target_tolerance:
@@ -603,12 +602,9 @@ class Wotan_Tester:
 					sys.exit()
 
 			#get next value of pin demand to try
-			pin_demand_current = (pin_demand_high + pin_demand_low) / 2
+			demand_mult_current = (demand_mult_high + demand_mult_low) / 2
 
-			adjusted_wotan_opts = wotan_opts + ' -opin_demand ' + str(pin_demand_current)
-
-			#commenting out -- can now pass in opin demand to wotan from command line
-			#self.replace_wotan_pin_demand(pin_demand_current)
+			adjusted_wotan_opts = wotan_opts + ' -demand_multiplier ' + str(demand_mult_current)
 
 			#run wotan and get the value of the target metric
 			self.make_wotan()
@@ -618,25 +614,25 @@ class Wotan_Tester:
 
 			if monotonic_increasing:
 				if current < target:
-					pin_demand_low = pin_demand_current
+					demand_mult_low = demand_mult_current
 				else:
-					pin_demand_high = pin_demand_current
+					demand_mult_high = demand_mult_current
 			else:
 				if current > target:
-					pin_demand_low = pin_demand_current
+					demand_mult_low = demand_mult_current
 				else:
-					pin_demand_high = pin_demand_current
+					demand_mult_high = demand_mult_current
 
 
-			print( '\tat pin demand ' + str(pin_demand_current) + ' current val is ' + str(current) )
+			print( '\tat demand mult ' + str(demand_mult_current) + ' current val is ' + str(current) )
 			
-			if pin_demand_low > pin_demand_high:
+			if demand_mult_low > demand_mult_high:
 				print('low value > high value in binary search!')
 				sys.exit()
 
 			try_num += 1
 
-		return (current, pin_demand_current, wotan_out)
+		return (current, demand_mult_current, wotan_out)
 
 
 
@@ -782,25 +778,21 @@ class Wotan_Tester:
 
 			#run wotan
 			wotan_output = None
-			pin_demand = None
+			demand_mult = None
 			if self.test_type == 'normal':
 				wotan_output = self.run_wotan( test_suite.wotan_opts )
 			elif 'binary_search_' in self.test_type:
-				#run a binary search algorithm to adjust wotan's opin demand according to the 
+				#run a binary search algorithm to adjust wotan's demand multiplier according to the 
 				#specified target value and tolerance.
 				target_value = 0
 				target_tolerace = 0
 				max_tries = 15
 
-				if self.test_type == 'binary_search_pessimistic_prob':
-					#searching for a specific value of the 'pessimistic prob' metric
+				if self.test_type == 'binary_search_routability_metric':
+					#searching for a specific value of the routability metric
 					target_value = 0.3
 					target_tolerance = 0.005
 					max_tries = 20
-				elif self.test_type == 'binary_search_total_prob':
-					#searching for a specific value of the 'total prob' metric
-					#TODO
-					pass
 				elif self.test_type == 'binary_search_norm_demand':
 					#sesarch for a specific value of the 'normalized demand' metric
 					#TODO
@@ -812,7 +804,7 @@ class Wotan_Tester:
 					
 
 				#run binary search
-				(final_target_val, pin_demand, wotan_output) = self.search_for_wotan_pin_demand(test_suite.wotan_opts, self.test_type,
+				(final_target_val, demand_mult, wotan_output) = self.search_for_wotan_demand_multiplier(test_suite.wotan_opts, self.test_type,
 				                                                                            target = target_value,
 				                                                                            target_tolerance = target_tolerance,
 													    max_tries = max_tries)
@@ -827,7 +819,7 @@ class Wotan_Tester:
 				#if self.test_type == 'binary_search_norm_demand' and regex == test_suite.output_regex_list[ test_suite.plot_index ]:
 				#	#normalize result by pin demand
 				#	print('\t\tprobability: ' + regexed_result)
-				#	regexed_result = str( float(regexed_result) * pin_demand )
+				#	regexed_result = str( float(regexed_result) * demand_mult )
 				#	print('\t\tadjusted probability: ' + regexed_result)
 
 				#	#TODO: make a separate column for the plot result; modify it if doing some kind of binary search
@@ -959,7 +951,7 @@ class Wotan_Tester:
 		#at that point the arch with the lower probability will be considered more routable
 		target_prob = 0.3
 		target_tolerance = 0.02
-		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
+		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
 		#holds a list of results for each arch pair comparison
 		result_table = []
@@ -1061,7 +1053,7 @@ class Wotan_Tester:
 		#get pin demand / routability based on first architecture
 		self.update_arch_based_on_arch_point(path_arch1, arch_point1)
 		self.run_vpr( vpr_opts_arch1 )
-		(arch1_metric, pin_demand, arch1_output) = self.search_for_wotan_pin_demand(wotan_opts = wotan_opts,
+		(arch1_metric, demand_mult, arch1_output) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
 											  test_type = self.test_type,
 											  target = target,
 											  target_tolerance = target_tolerance,
@@ -1070,7 +1062,7 @@ class Wotan_Tester:
 		#now get the routability of the second architecture
 		self.update_arch_based_on_arch_point(path_arch2, arch_point2)
 		self.run_vpr( vpr_opts_arch2 )
-		arch2_output = self.run_wotan( wotan_opts + ' -opin_demand ' + str(pin_demand) )
+		arch2_output = self.run_wotan( wotan_opts + ' -demand_multiplier ' + str(demand_mult) )
 		arch2_metric = float( regex_last_token(arch2_output, target_regex) )
 
 		print (arch1_metric, arch2_metric)
@@ -1081,9 +1073,10 @@ class Wotan_Tester:
 	#range of channel widths
 	def sweep_architecture_over_W(self, arch_point, w_range):
 		result_list = []
-		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
 
-
+		target_prob = 0.5
+		target_tolerance = 0.005
+		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 		
 		arch_path = arch_point.get_wotan_arch_path()
 
@@ -1096,17 +1089,26 @@ class Wotan_Tester:
 		self.make_wotan()
 		
 		#use wotan to evaluate the architecture point at each channel width
-		wotan_opts = '-rr_structs_file ' + self.vtr_path + '/vpr/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y' + \
-			     ' -opin_demand 1.5'
+		wotan_opts = '-rr_structs_file ' + self.vtr_path + '/vpr/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y'
 		for chan_width in w_range:
 			
 			#run vpr at specified channel width to build the rr graph
 			vpr_opts = arch_point.get_wotan_arch_path() + ' ' + self.vtr_path + '/vtr_flow/benchmarks/blif/alu4.blif -nodisp -route_chan_width ' + str(chan_width)
 			vpr_out = self.run_vpr(vpr_opts)	#eventually it would be interesting to see how many benchmarks also route at this channel width
+		
 			
-			#rr graph is built, run wotan
-			wotan_out = self.run_wotan(wotan_opts)
-			wotan_score = float( regex_last_token(wotan_out, target_regex) )
+			#run binary search to find pin demand at which the target_regex hits its target value 
+			(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
+											       test_type = self.test_type,
+											       target = target_prob,
+											       target_tolerance = target_tolerance,
+											       target_regex = target_regex)
+		
+			#get metric used for evaluating the architecture
+			metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+			metric_label = 'Demand Multiplier'
+
+			wotan_score = float(regex_last_token(wotan_out, metric_regex))
 
 			print('W=' + str(chan_width) + '  score=' + str(wotan_score))
 
@@ -1133,7 +1135,7 @@ class Wotan_Tester:
 		#binary search over pin demand until target prob is hit with specified tolerance
 		target_prob = 0.5
 		target_tolerance = 0.005
-		target_regex = '.*Pessimistic prob: (\d+\.*\d*).*'
+		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
 		wotan_results = []
 		vpr_results = []
@@ -1160,16 +1162,15 @@ class Wotan_Tester:
 
 			###### Evaluate architecture with Wotan ######
 			#run binary search to find pin demand at which the target_regex hits its target value 
-			(target_val, pin_demand, wotan_out) = self.search_for_wotan_pin_demand(wotan_opts = wotan_opts,
+			(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
 											       test_type = self.test_type,
 											       target = target_prob,
 											       target_tolerance = target_tolerance,
 											       target_regex = target_regex)
 
 			#get metric used for evaluating the architecture
-			metric_regex = '.*Opin demand: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+			metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
 			metric_label = 'Demand Multiplier'
-
 			metric_value = float(regex_last_token(wotan_out, metric_regex))
 
 			#add metric to list of wotan results

@@ -37,7 +37,7 @@ User_Options::User_Options(){
 
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */
-	this->ipin_probability = 0.000001;
+	this->ipin_probability = 0.3;
 	this->opin_probability = 0.6;
 	this->demand_multiplier = 1.0;
 
