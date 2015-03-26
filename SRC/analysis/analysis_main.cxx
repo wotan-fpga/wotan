@@ -42,7 +42,7 @@ using namespace std;
 #define WORST_NODE_DEMAND_PERCENTILE 0.05
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
-#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.5
+#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.1
 #define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.5
 
 /* with what weights should driver & fanout components of the routability metric be combined */
@@ -385,7 +385,7 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	t_node_topo_inf node_topo_inf;
 	node_topo_inf.assign(num_rr_nodes, Node_Topological_Info());
 	for (int inode = 0; inode < num_rr_nodes; inode++){
-		node_topo_inf[inode].buckets.alloc_source_sink_buckets(large_max_path_weight+1, large_max_path_weight+1);	//TODO. basing on hard-coded path weight is unsafe
+		node_topo_inf[inode].buckets.alloc_source_sink_buckets(large_max_path_weight+1, large_max_path_weight+1);
 	}
 
 	/* perform path enumeration */
@@ -767,7 +767,6 @@ void* enumerate_paths_from_source( void *ptr ){
 		int iterations = 0;
 
 		/* enumerate paths to neighboring tiles (scaling factor here depends on their distances from test tile) */
-		int num_input_pins = block_type[fill_type_ind].get_num_receivers();
 		vector<int> conns_at_distance;
 		conns_at_distance.assign(max_conn_length+1, 0);
 		for (int ilen = 1; ilen <= max_conn_length; ilen++){
@@ -775,7 +774,7 @@ void* enumerate_paths_from_source( void *ptr ){
 				continue;
 			}
 
-			int num_conns = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid, 	//TODO: rename 'num_conns_at_length'
+			int num_conns_at_length = conns_at_distance_from_tile(tile_coord.x, tile_coord.y, ilen, grid,
 						      grid_size_x, grid_size_y, block_type, fill_type_ind);
 
 			/* traverse a list of blocks that is a distance 'ilen' away from the test tile.
@@ -819,7 +818,7 @@ void* enumerate_paths_from_source( void *ptr ){
 							/* analyze this source/sink connection */
 							analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 										routing_structs, ss_distances, node_topo_inf, ilen, 
-										num_conns, nodes_visited, topological_mode, user_opts);
+										num_conns_at_length, nodes_visited, topological_mode, user_opts);
 							
 							iterations++;
 							pthread_mutex_lock(&f_analysis_results.thread_mutex);
@@ -854,7 +853,7 @@ static void get_prob_analysis_tile_region(User_Options *user_opts, int grid_size
 }
 
 
-/* currently returns the total number of connections at each connection length <= maximum connection length */	//TODO: "pin_type" parameter?
+/* currently returns the total number of connections at each connection length <= maximum connection length */
 static void get_conn_length_stats(User_Options *user_opts, Analysis_Settings *analysis_settings, Routing_Structs *routing_structs, 
                         Arch_Structs *arch_structs, e_pin_type enumerate_type, vector<int> &conns_at_length){
 
@@ -875,7 +874,7 @@ static void get_conn_length_stats(User_Options *user_opts, Analysis_Settings *an
 	int from_x, to_x, from_y, to_y;
 	get_prob_analysis_tile_region(user_opts, grid_size_x, grid_size_y, &from_x, &from_y, &to_x, &to_y);
 
-	/* calculate number of sources in a tile of fill type */	//TODO: this takes into account both opins and ipins. want to split this up
+	/* calculate number of sources in a tile of fill type */
 	int num_tile_pins = fill_type->get_num_pins();
 	int num_tile_sources = 0;
 	for (int ipin = 0; ipin < num_tile_pins; ipin++){
@@ -911,10 +910,6 @@ static void get_conn_length_stats(User_Options *user_opts, Analysis_Settings *an
 			if (width_offset > 0 || height_offset > 0){
 				WTHROW(EX_PATH_ENUM, "Didn't expect logic block to have > 0 width/height offset");
 			}
-
-			///* it is assumed there is a source for each output pin.
-			//   note that multiple sources can be contained in a single super-source */
-			//int num_output_pins = fill_type->get_num_drivers();				//TODO: should really be looking at actual sources/sinks...
 
 			/* for each legal length */
 			for (int ilen = 1; ilen <= max_conn_length; ilen++){
@@ -1045,7 +1040,10 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 	if (topological_mode == ENUMERATE){
 		/* enumerate connection paths */
 
-		float scaling_factor_for_enumerate = (float)num_sinks * (float)num_sources * source_probability * length_prob / (float)number_conns_at_length;
+		float scaling_factor_for_enumerate = (float)num_sinks * source_probability * length_prob / (float)number_conns_at_length;
+		//cout << "source prob: " << source_probability << "  source node: " << source_node_ind << "  conns at length: " << number_conns_at_length << endl;
+		//cout << "\t scaling fac: " << scaling_factor_for_enumerate << endl;
+		//cout << "\t" << num_sinks << " " << num_sources << " " << source_probability << " " << length_prob << " " << number_conns_at_length << endl;
 		enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 							routing_structs, ss_distances, node_topo_inf, conn_length, 
 							nodes_visited, user_opts,
@@ -1065,7 +1063,7 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 
 		/* increment the probability metric */
 		if (probability_connection_routable >= 0){
-			float scaling_factor = (float)num_sinks * (float)num_sources * source_probability * length_prob / (float)number_conns_at_length;
+			float scaling_factor = (float)num_sinks * source_probability * length_prob / (float)number_conns_at_length;
 			float probability_increment = scaling_factor * probability_connection_routable;
 
 			/* increment probability metric */
