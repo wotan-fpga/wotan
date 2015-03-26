@@ -46,8 +46,8 @@ using namespace std;
 #define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.5
 
 /* with what weights should driver & fanout components of the routability metric be combined */
-#define DRIVER_PROB_WEIGHT 0.4
-#define FANOUT_PROB_WEIGHT 0.6
+#define DRIVER_PROB_WEIGHT 0.5
+#define FANOUT_PROB_WEIGHT 0.5
 
 
 
