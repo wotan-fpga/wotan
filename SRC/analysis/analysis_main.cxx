@@ -42,12 +42,15 @@ using namespace std;
 #define WORST_NODE_DEMAND_PERCENTILE 0.05
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
-#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.1
-#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.5
+#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.1		//0.1 driver and 0.5 fanout looked fairly good
+#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.1
 
 /* with what weights should driver & fanout components of the routability metric be combined */
 #define DRIVER_PROB_WEIGHT 0.5
-#define FANOUT_PROB_WEIGHT 0.5
+#define FANOUT_PROB_WEIGHT 0.0	//TODO: set to 0 and re-check results...
+				//TODO: also, I have disabled pin demands. What does 4LUT case look like now? If it looks bad I should re-enable them.
+				//After that re-enable pin demands... were my previous tests with or without them? :|
+				//TODO: switch to cutline for shits and giggles?
 
 
 
