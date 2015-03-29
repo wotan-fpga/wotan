@@ -773,7 +773,7 @@ class Wotan_Tester:
 			self.update_arch_based_on_test_suite(wotan_arch_path, test_suite, metric)
 
 			#rebuild vpr graph
-			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 80 -nodisp'
 			self.run_vpr( vpr_opts )
 
 			#run wotan
@@ -961,8 +961,8 @@ class Wotan_Tester:
 				print('expected two entries in arch pair, got ' + str(len(arch_pair)))
 				sys.exit()
 			
-			arch1_vpr_opts = arch_pair[0].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
-			arch2_vpr_opts = arch_pair[1].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			arch1_vpr_opts = arch_pair[0].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 80 -nodisp'
+			arch2_vpr_opts = arch_pair[1].get_wotan_arch_path() + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 80 -nodisp'
 
 			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
 			self.make_wotan()
@@ -1156,7 +1156,7 @@ class Wotan_Tester:
 			wotan_arch_path = arch_point.get_wotan_arch_path()
 			self.update_arch_based_on_arch_point(wotan_arch_path, arch_point)
 
-			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 100 -nodisp'
+			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 70 -nodisp'
 			self.run_vpr( vpr_opts )
 
 
