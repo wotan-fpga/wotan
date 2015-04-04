@@ -1137,6 +1137,10 @@ class Wotan_Tester:
 		target_tolerance = 0.005
 		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
+		#a list of channel widths over which to evaluate w/ wotan (i.e. geomean)
+		chan_widths = [50, 70, 90]
+		
+
 		wotan_results = []
 		vpr_results = []
 
@@ -1156,24 +1160,30 @@ class Wotan_Tester:
 			wotan_arch_path = arch_point.get_wotan_arch_path()
 			self.update_arch_based_on_arch_point(wotan_arch_path, arch_point)
 
-			vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -route_chan_width 70 -nodisp'
-			self.run_vpr( vpr_opts )
-
 
 			###### Evaluate architecture with Wotan ######
-			#run binary search to find pin demand at which the target_regex hits its target value 
-			(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
-											       test_type = self.test_type,
-											       target = target_prob,
-											       target_tolerance = target_tolerance,
-											       target_regex = target_regex)
+			metric_value_list = []
+			for chanw in chan_widths:
+				print('W = ' + str(chanw))
 
-			#get metric used for evaluating the architecture
-			metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
-			metric_label = 'Demand Multiplier'
-			metric_value = float(regex_last_token(wotan_out, metric_regex))
+				vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -nodisp -route_chan_width ' + str(chanw)
+				self.run_vpr( vpr_opts )
+
+				#run binary search to find pin demand at which the target_regex hits its target value 
+				(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
+												       test_type = self.test_type,
+												       target = target_prob,
+												       target_tolerance = target_tolerance,
+												       target_regex = target_regex)
+
+				#get metric used for evaluating the architecture
+				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+				metric_label = 'Demand Multiplier'
+				metric_value_list += [float(regex_last_token(wotan_out, metric_regex))]
 
 			#add metric to list of wotan results
+			metric_value = get_geomean(metric_value_list)
+			print('geomean score: ' + str(metric_value))
 			wotan_result_entry = [arch_point_index, arch_point.as_str(), metric_value]
 			wotan_results += [wotan_result_entry]
 
