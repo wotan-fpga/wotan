@@ -268,9 +268,10 @@ tester = wt.Wotan_Tester(
 
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
-#arch_list = wt.my_custom_archs_list(arch_dictionaries)
-vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
-arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
+arch_list = wt.my_custom_archs_list(arch_dictionaries)
+#vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
+#arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
+vpr_arch_ordering = []
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
