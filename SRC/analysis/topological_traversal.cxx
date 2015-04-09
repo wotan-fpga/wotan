@@ -247,7 +247,7 @@ static void put_child_onto_nodes_waiting_structure(int child_ind, t_rr_node &rr_
 	   This is a provisional heuristic for breaking cycles. Its effectiveness has yet to be
 	   evaluated (TODO) */
 	   //TODO: now actually I use a 3-level sort
-	   //	1st level: min path weight through node (by descending order)
+	   //	1st level: min path weight through node (by descending order)	//should 1 & 2 be swapped? why this way?
 	   //	2nd level: min path weight to source (by ascending order)
 	   //	3rd level: pointer of node (by ascending order)
 
