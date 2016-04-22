@@ -43,7 +43,7 @@ User_Options::User_Options(){
 
 	/* length probabilities can be initialized from a file in the future, but for now set them
 	   to some default value */
-	this->length_probabilities.assign(12, 0);
+	this->length_probabilities.assign(20, 0);
 	this->length_probabilities[0] = 0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
 	this->length_probabilities[1] = 0.40;
 	this->length_probabilities[2] = 0.23;
@@ -54,19 +54,13 @@ User_Options::User_Options(){
 	this->length_probabilities[7] = 0.025;
 	this->length_probabilities[8] = 0.015;
 	this->length_probabilities[9] = 0.01;
-
-	//this->length_probabilities[0] = 0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
-	//this->length_probabilities[1] = 0.4;
-	//this->length_probabilities[2] = 0;
-	//this->length_probabilities[3] = 0.25;
-	//this->length_probabilities[4] = 0;
-	//this->length_probabilities[5] = 0.15;
-	//this->length_probabilities[6] = 0;
-	//this->length_probabilities[7] = 0.1;
-	//this->length_probabilities[8] = 0;
-	//this->length_probabilities[9] = 0.05;
-	//this->length_probabilities[10] = 0;
-	//this->length_probabilities[11] = 0.05;
+	this->length_probabilities[10] = 0.008;
+	this->length_probabilities[11] = 0.008;
+	this->length_probabilities[12] = 0.006;
+	this->length_probabilities[13] = 0.005;
+	this->length_probabilities[14] = 0.004;
+	this->length_probabilities[15] = 0.003;
+	this->length_probabilities[16] = 0.003;
 }
 /*==== END User Options Class ====*/
 
@@ -242,6 +236,12 @@ short RR_Node_Base::get_yhigh() const{
 	return yhigh;
 }
 
+
+/* how many logic blocks does this node span? */
+short RR_Node_Base::get_span() const{
+	return this->span;
+}
+
 /* get node resistance */
 float RR_Node_Base::get_R() const{
 	return this->R;
@@ -362,7 +362,7 @@ void RR_Node::alloc_in_edges_and_switches(short n_edges){
 
 /* allocate source/sink path history structure */
 void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
-	int history_radius = 3;
+	int history_radius = 0;		//TODO: this should really be a command line option that makes its way to this function!!!
 	e_rr_type rr_type = this->get_rr_type();
 
 	/* want to only keep path count history for opin/ipin/chanx/chany */
@@ -457,10 +457,16 @@ void RR_Node::set_weight(){
 	x_high = this->get_xhigh();
 	y_high = this->get_yhigh();
 
-	short my_weight = (x_high - x_low) + (y_high - y_low);
+	//float my_weight = (float)(x_high - x_low) + (y_high - y_low);
+	//if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
+	//	my_weight += 1.0;
+	//}
 
+
+	float my_weight = 0.0;
 	if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-		my_weight++;
+		my_weight = 1.0 + this->demand*((float)this->get_span() + 1.0);
+		my_weight = ceil(my_weight);
 	}
 	
 	this->weight = my_weight;
@@ -497,7 +503,7 @@ short RR_Node::get_num_in_edges() const{
 }
 
 /* returns weight of this node */
-short RR_Node::get_weight() const{
+float RR_Node::get_weight() const{
 	return this->weight;
 }
 

@@ -229,6 +229,7 @@ public:
 	short get_ylow() const;				/* get low y coordinate of this node */
 	short get_xhigh() const;			/* get high x coordinate of this node */
 	short get_yhigh() const;			/* get high y coordinate of this node */
+	short get_span() const;				/* how many logic blocks does this node span? */
 	float get_R() const;				/* get node resistance */
 	float get_C() const;				/* get node capacitance */
 	short get_ptc_num() const;			/* get the pin-track-class number of this node */
@@ -252,7 +253,7 @@ public:
 class RR_Node : public RR_Node_Base {
 private:
 	short num_in_edges;				/* number of edges linking into this node */
-	short weight;					/* weight of this node */
+	float weight;					/* weight of this node */
 	double demand;					/* fractional demand for this node. used for routability analysis */
 
 	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
@@ -314,7 +315,7 @@ public:
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
-	short get_weight() const;
+	float get_weight() const;
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.

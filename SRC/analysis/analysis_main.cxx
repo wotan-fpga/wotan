@@ -7,6 +7,7 @@
 #include <utility>
 #include <functional>
 #include <pthread.h>
+#include <malloc.h>
 #include "analysis_main.h"
 #include "wotan_types.h"
 #include "exception.h"
@@ -29,7 +30,7 @@ using namespace std;
    The maximum pathweight considered for a source-sink pair is (weight from source to sink)*PATH_FLEXIBILITY_FACTOR.
    Note however that there is an additional constraint on maximum path weight set by analysis_settings->get_max_path_weight
      - if (weight from source to sink) exceeds this then the connection simply won't be analyzed. */				//TODO: confusing. can consolidate?
-#define PATH_FLEXIBILITY_FACTOR 1.3
+#define PATH_FLEXIBILITY_FACTOR 2.0
 
 /* If core analysis is enabled in user options then probability analysis is only performed for blocks in the region 
    that is >= 'CORE_OFFSET' blocks away from the perimeter */
@@ -39,7 +40,7 @@ using namespace std;
 #define PROBABILITY_MODE PROPAGATE //CUTLINE_SIMPLE
 
 /* what percentage of worst node demands to look at? */
-#define WORST_NODE_DEMAND_PERCENTILE 0.05
+//#define WORST_NODE_DEMAND_PERCENTILE 0.05
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
 #define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.1		//0.1 driver and 0.5 fanout looked fairly good
@@ -112,7 +113,7 @@ typedef vector< Conn_Info > t_thread_conn_info;
 
 /************ Classes ************/
 
-/* contains a the node indices of a source/sink pair for which a connection should be analyzed */
+/* contains the node indices of a source/sink pair for which a connection should be analyzed */
 class Source_Sink_Pair{
 public:
 	int source_ind;
@@ -142,6 +143,8 @@ class Analysis_Results{
 public:
 	/* mutex for threads wishing to add to the results */
 	pthread_mutex_t thread_mutex;
+	pthread_barrier_t thread_barrier;
+	int active_threads;
 
 	/* maximum possible total weighted probability is ALL connections have a 100% chance of routing (used to normalize analysis) */
 	double max_possible_total_prob_drivers;
@@ -165,6 +168,7 @@ public:
 
 	/* constructor to initialize constituent variables to 0 */
 	Analysis_Results(){
+
 		this->max_possible_total_prob_drivers = 0;
 		this->max_possible_total_prob_fanout = 0;
 		this->total_prob_drivers = 0;
@@ -179,7 +183,6 @@ public:
 /* Structure containing relevant results for path enumeration and routability analysis.
    It can be written to by different threads with the help of the thread_mutex member variable */
 static Analysis_Results f_analysis_results = Analysis_Results();
-
 
 
 /************ Function Declarations ************/
@@ -303,7 +306,6 @@ static int conns_at_distance_from_tile(int tile_x, int tile_y, int length, t_gri
 static float analyze_lowest_probs_pqs( vector< t_lowest_probs_pq > &lowest_probs_pqs);
 
 
-
 /************ Function Definitions ************/
 /* the entry function to performing routability analysis */
 void run_analysis(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
@@ -325,7 +327,7 @@ void run_analysis(User_Options *user_opts, Analysis_Settings *analysis_settings,
 static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs){
 
-	srand(1);
+	srand(3);
 
 	vector<int> driver_conns_at_length;
 	vector<int> receiver_conns_at_length;
@@ -338,7 +340,8 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 	for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
 		/* set the bounded priority queue entries limit w.r.t. to the "..._conns_at_length" stats */
 		if (driver_conns_at_length[ilen] > 0){
-			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * FRACTION_CONNS;		//XXX
+			//int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * FRACTION_CONNS;		//XXX
+			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * user_opts->length_probabilities[ilen];
 			cout << "len" << ilen << " entries " << driver_entries_limit << endl;
 			f_analysis_results.lowest_probs_pqs_drivers[ilen].set_properties( driver_entries_limit );
 		}
@@ -347,9 +350,6 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 			f_analysis_results.lowest_probs_pqs_fanout[ilen].set_properties( receiver_entries_limit );
 		}
 	}
-
-	/* initialize mutex that will be used for synchronizing threads' updates to shared variables */
-	pthread_mutex_init(&f_analysis_results.thread_mutex, NULL);
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
 
@@ -586,8 +586,18 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		}
 	}
 
+	f_analysis_results.active_threads = num_threads;
+	/* initialize mutex that will be used for synchronizing threads' updates to shared variables */
+	pthread_mutex_init(&f_analysis_results.thread_mutex, NULL);
+	/* initialize thread semaphore */
+	pthread_barrier_init(&f_analysis_results.thread_barrier, 0, f_analysis_results.active_threads);
+
 	/* launch the threads */
 	launch_pthreads(thread_conn_info, threads, num_threads);
+
+	pthread_mutex_destroy(&f_analysis_results.thread_mutex);
+	pthread_barrier_destroy(&f_analysis_results.thread_barrier);
+
 
 	
 	/* calculate metrics */
@@ -663,6 +673,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 
 		cout << "Routability metric: " << routability_metric << endl;
 	}
+
+	malloc_trim(0);
 }
 
 
@@ -769,7 +781,8 @@ static void get_corresponding_sink_ids(User_Options *user_opts, Analysis_Setting
 
 						//XXX
 						double rand_value = (double)rand() / (double)(RAND_MAX);
-						if (rand_value > FRACTION_CONNS){
+						//if (rand_value > FRACTION_CONNS){
+						if (rand_value > user_opts->length_probabilities[ilen]){
 							continue;
 						}
 
@@ -884,6 +897,8 @@ void* enumerate_paths_from_source( void *ptr ){
 	e_topological_mode topological_mode = conn_info->topological_mode;
 
 
+	int connections_done = 0;
+
 	for (Source_Sink_Pair ss_pair : source_sink_pairs){
 		int source_node_ind = ss_pair.source_ind;
 		int sink_node_ind = ss_pair.sink_ind;
@@ -894,7 +909,41 @@ void* enumerate_paths_from_source( void *ptr ){
 		analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
 					routing_structs, ss_distances, node_topo_inf, ss_length, 
 					source_conns_at_length, nodes_visited, topological_mode, user_opts);
+
+
+		//XXX still some exceptions thrown sometimes...
+		if (connections_done == 1000){
+			pthread_barrier_wait(&f_analysis_results.thread_barrier);
+
+			/* update node weights based on their demands; synchronize between threads */
+			if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
+				/* this thread will do the node weight updates */				
+		
+				/* wait for all threads to be done */
+
+				for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
+					routing_structs->rr_node[inode].set_weight();
+				}
+
+				pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+			} else {
+				/* all other threads synchronize here */
+				pthread_mutex_lock(&f_analysis_results.thread_mutex);
+				pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+			}
+			connections_done = 0;
+		}
+
+		connections_done++;
 	}
+
+	/* decrement active thread count */
+	////XXX: what if this runs at the same time as the trylock above?
+	//pthread_mutex_lock(&f_analysis_results.thread_mutex);
+	//f_analysis_results.active_threads--;
+	//pthread_barrier_destroy(&f_analysis_results.thread_barrier);
+	//pthread_barrier_init(&f_analysis_results.thread_barrier, 0, f_analysis_results.active_threads);
+	//pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 
 	return (void*) NULL;
 }
@@ -1329,6 +1378,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 						propagate_child_iterated_func,
 						propagate_traversal_done_func);
 			
+
 			probability_sink_reachable = propagate_structs.prob_routable;
 
 			//cout << "prob reachable: " << probability_sink_reachable << endl;
@@ -1425,7 +1475,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
-	My_Bounded_Priority_Queue< int > PQ( max_path_weight );
+	My_Bounded_Priority_Queue< int > PQ( max_path_weight*2 );
 	int *edge_list;
 	int num_children;
 
@@ -1446,6 +1496,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 		int node_ind = PQ.top();
 		int node_path_weight = PQ.top_weight();	//should match the distance from this node to source/sink (if doing forward/backward traversal)
 		PQ.pop();
+
 
 		if (node_ind == to_node_ind){
 			/* adjust max path weight (determines which nodes will be considered during this traversal) */
@@ -1478,9 +1529,9 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 
 	int dest_xlow, dest_xhigh, dest_ylow, dest_yhigh;
 	
-	dest_xlow = rr_node [to_node_ind].get_xlow();
+	dest_xlow = rr_node[to_node_ind].get_xlow();
 	dest_xhigh = rr_node[to_node_ind].get_xhigh();
-	dest_ylow = rr_node [to_node_ind].get_ylow();
+	dest_ylow = rr_node[to_node_ind].get_ylow();
 	dest_yhigh = rr_node[to_node_ind].get_yhigh();
 
 	/* expecting the destination node to not be localized to one tile only */
@@ -1493,6 +1544,7 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 
 	for (int iedge = 0; iedge < num_edges; iedge++){
 		int node_ind = edge_list[iedge];
+		e_rr_type node_type = rr_node[node_ind].get_rr_type();
 
 		/* check if node has already been visited */
 		if (traversal_dir == FORWARD_TRAVERSAL){
@@ -1510,14 +1562,27 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 
 		/* mark node as visited */
 		if (traversal_dir == FORWARD_TRAVERSAL){
+			if (node_type == IPIN){
+				if (rr_node[node_ind].get_xlow() != dest_xlow && rr_node[node_ind].get_ylow() != dest_ylow){
+					continue;
+				}
+			}
+
 			/* on forward traversal, skip nodes that have no chance to reach the destination in the maximum allowed path weight */
 			if (!node_has_chance_to_reach_destination(node_ind, destx, desty, path_weight, max_path_weight, rr_node)){
 				continue;
 			}
 
+
 			ss_distances[node_ind].set_source_distance( path_weight );
 			ss_distances[node_ind].set_visited_from_source(true);
 		} else {
+			if (node_type == OPIN){
+				if (rr_node[node_ind].get_xlow() != dest_xlow && rr_node[node_ind].get_ylow() != dest_ylow){
+					continue;
+				}
+			}
+
 			ss_distances[node_ind].set_sink_distance( path_weight );
 			ss_distances[node_ind].set_visited_from_sink(true);
 
@@ -1584,7 +1649,6 @@ bool node_has_chance_to_reach_destination(int node_ind, int destx, int desty, in
 		WTHROW(EX_PATH_ENUM, "Node has a span in both the x and y directions");
 	}
 	remaining_lower_bound = max(x_diff + y_diff-1, 0);
-		
 
 	if (node_path_weight + remaining_lower_bound <= max_path_weight){
 		has_chance_to_reach = true;
