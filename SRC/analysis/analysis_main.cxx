@@ -860,7 +860,7 @@ static float node_demand_metric(User_Options *user_opts, t_rr_node &rr_node){
 void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, int num_threads){
 
 	/* create num_threads-1 threads (the remaining thread is executed in the current context) */
-	for (int ithread = 0; ithread < num_threads-1; ithread++){
+	for (int ithread = 0; ithread < num_threads; ithread++){
 		/* create pthread with default attributes */
 		int result = pthread_create(&threads[ithread], NULL, enumerate_paths_from_source, (void*) &thread_conn_info[ithread]);
 		if (result != 0){
@@ -869,7 +869,7 @@ void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, i
 	}
 
 	/* the last thread is launched here */
-	enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
+	//enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
 
 	/* wait for threads to complete */
 	for (int ithread = 0; ithread < num_threads-1; ithread++){
@@ -899,7 +899,9 @@ void* enumerate_paths_from_source( void *ptr ){
 
 	int connections_done = 0;
 
-	for (Source_Sink_Pair ss_pair : source_sink_pairs){
+	for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
+	//for (Source_Sink_Pair ss_pair : source_sink_pairs){
+		Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
 		int source_node_ind = ss_pair.source_ind;
 		int sink_node_ind = ss_pair.sink_ind;
 		int ss_length = ss_pair.ss_length;
@@ -911,39 +913,47 @@ void* enumerate_paths_from_source( void *ptr ){
 					source_conns_at_length, nodes_visited, topological_mode, user_opts);
 
 
-		//XXX still some exceptions thrown sometimes...
-		if (connections_done == 1000){
-			pthread_barrier_wait(&f_analysis_results.thread_barrier);
 
-			/* update node weights based on their demands; synchronize between threads */
-			if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
-				/* this thread will do the node weight updates */				
-		
-				/* wait for all threads to be done */
 
-				for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
-					routing_structs->rr_node[inode].set_weight();
-				}
-
-				pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-			} else {
-				/* all other threads synchronize here */
-				pthread_mutex_lock(&f_analysis_results.thread_mutex);
-				pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-			}
-			connections_done = 0;
+		/***** WEIRD THREAD SYNCHRONIZATION -- Updating Node Weights *****/
+		/* threads will exit at the same time when the active thread count drops to 0 */
+		bool thread_done = false;
+		if (ipair == (int)source_sink_pairs.size()-1){
+			thread_done = true;
+			pthread_mutex_lock(&f_analysis_results.thread_mutex);
+			f_analysis_results.active_threads--;
+			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
 		}
 
-		connections_done++;
-	}
+		/* do-while makes sure that all threads exit at the same time; otherwise pthread barrier will get messed up */
+		do{
+			/* Node weights are updated after each thread goes through a certain number of connections */
+			if (connections_done == 300 || thread_done){
 
-	/* decrement active thread count */
-	////XXX: what if this runs at the same time as the trylock above?
-	//pthread_mutex_lock(&f_analysis_results.thread_mutex);
-	//f_analysis_results.active_threads--;
-	//pthread_barrier_destroy(&f_analysis_results.thread_barrier);
-	//pthread_barrier_init(&f_analysis_results.thread_barrier, 0, f_analysis_results.active_threads);
-	//pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+				pthread_barrier_wait(&f_analysis_results.thread_barrier);
+
+				/* update node weights based on their demands; synchronize between threads */
+				if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
+					/* this thread will do the node weight updates */				
+			
+					for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
+						routing_structs->rr_node[inode].set_weight();
+					}
+
+					pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+				} else {
+					/* all other threads synchronize here */
+					pthread_mutex_lock(&f_analysis_results.thread_mutex);
+					pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+				}
+				connections_done = 0;
+
+			}
+
+			connections_done++;
+
+		} while (thread_done && f_analysis_results.active_threads != 0);
+	}
 
 	return (void*) NULL;
 }
