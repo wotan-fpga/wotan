@@ -425,6 +425,12 @@ class Wotan_Tester:
 		benchmark_list = bm_info.benchmark_list
 		regex_list = bm_info.regex_list
 
+		run_dir = ''
+		for token in (arch_path.split('/'))[:-1]:
+			run_dir += token + '/'
+
+		os.chdir( run_dir )
+
 		output_list = []
 		
 		vpr_opts = arch_path + ' ' + benchmark + ' ' + vpr_base_opts
@@ -642,11 +648,11 @@ class Wotan_Tester:
 				print('W = ' + str(chanw))
 
 				#6LUT and 4LUT benchmarks are from different directories
-				benchmark = '/vtr_benchmarks_blif/sha.blif'
+				benchmark = 'vtr_benchmarks_blif/sha.blif'
 				if arch_point.lut_size == 4:
 					benchmark = '4LUT_DSP_vtr_benchmarks_blif/sha.pre-vpr.blif'
 
-				vpr_opts = wotan_arch_path + ' ' + self.vtr_path + '/vtr_flow/benchmarks/' + benchmark + ' -nodisp -dump_rr_structs_file ./dumped_rr_structs.txt -place -route_chan_width ' + str(chanw)
+				vpr_opts = wotan_arch_path + ' ' + self.vtr_path + '/vtr_flow/benchmarks/' + benchmark + ' -nodisp -dump_rr_structs_file ./dumped_rr_structs.txt -pack -place -route_chan_width ' + str(chanw)
 				vpr_out = self.run_vpr( vpr_opts )
 
 				#run binary search to find pin demand at which the target_regex hits its target value 
