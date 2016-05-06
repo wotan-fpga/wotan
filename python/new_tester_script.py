@@ -4,9 +4,9 @@ import numpy as np
 import new_wotan_tester as wt
 
 ############ Paths ############
-base_path = "/home/oleg/Documents/work/UofT/Grad"
+base_path = '/autofs/fs1.ece/fs1.eecg.vaughn/opetelin'
 vtr_path = base_path + "/vtr"
-wotan_path = base_path + "/my_vtr/wotan"
+wotan_path = base_path + "/wotan"
 
 #arch_dir = vtr_path + '/vtr_flow/arch/timing'
 arch_dir = wotan_path + '/arch'
@@ -48,7 +48,7 @@ regex_Rel = (
 #TODO wotan: WORST_ROUTABILITY_PERCENTILE, FRACTION_CONNS, length prob distributions
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 4 -keep_path_count_history y'
+wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 8 -keep_path_count_history y'
 wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
 

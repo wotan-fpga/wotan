@@ -92,45 +92,75 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 			<segment freq="0.15" name="l4g" length="4" type="unidir" Rmetal="33.835" Cmetal="0.0">
 				<mux name="sw_l4global"/>
 				<sb type="pattern">1 1 1 1 1</sb>
-				<cb type="pattern">1 0 0 0</cb>
+				<cb type="pattern">1 0 0 0 </cb>
 			</segment>
 		</segmentlist>
 
 		<!-- Define custom switch blocks -->
 		<switchblocklist>
-			<switchblock name="turn" type="unidir">
-				<switchblock_location type="EVERYWHERE"/>
-				<switchfuncs>
-					<func type="lt" formula="W-t"/>
-					<func type="lb" formula="t-1"/>
-					<func type="rt" formula="t-1"/>
-					<func type="br" formula="W-t-2"/>
-					<func type="tl" formula="W-t"/>
-					<func type="bl" formula="t+1"/>
-					<func type="tr" formula="t+1"/>
-					<func type="rb" formula="W-t-2"/>
-				</switchfuncs>
-				<wireconn FT="l4" TT="l4" FP="0,1,2,3" TP="0"/>
-				<wireconn FT="l4prime" TT="l4prime" FP="0,1,2,3" TP="0"/>
-				<wireconn FT="l4global" TT="l4global" FP="0" TP="0"/>
-				<wireconn FT="l4global" TT="l4prime" FP="0" TP="0"/>
-				<wireconn FT="l4prime" TT="l4global" FP="0" TP="0"/>
-			</switchblock>
-			<switchblock name="straight" type="unidir">
-				<switchblock_location type="EVERYWHERE"/>
-				<switchfuncs>
+		<switchblock name="subset_turn_core" type="unidir">
+			<switchblock_location type="CORE"/>
+			<switchfuncs>
+					<func type="lt" formula="t"/>
+					<func type="lb" formula="t"/>
+					<func type="rt" formula="t"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
+					<func type="bl" formula="t"/>
+					<func type="tr" formula="t"/>
+					<func type="rb" formula="t"/>
+
+			</switchfuncs>
+				<wireconn FT="l4s" TT="l4s" FP="0" TP="0"/>
+			<wireconn FT="l4s" TT="l4s" FP="1" TP="0"/>
+			<wireconn FT="l4s" TT="l4s" FP="2" TP="0"/>
+			<wireconn FT="l4s" TT="l4s" FP="3" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="0" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="1" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="2" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="3" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4sprime" FP="0" TP="0"/>
+
+		</switchblock>
+		<switchblock name="subset_turn_perimeter" type="unidir">
+			<switchblock_location type="PERIMETER"/>
+			<switchfuncs>
+					<func type="lt" formula="t"/>
+					<func type="lb" formula="t"/>
+					<func type="rt" formula="t"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
+					<func type="bl" formula="t"/>
+					<func type="tr" formula="t"/>
+					<func type="rb" formula="t"/>
+
+			</switchfuncs>
+				<wireconn FT="l4s" TT="l4s" FP="0,1,2,3" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="0,1,2,3" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4sprime" FP="0" TP="0"/>
+
+		</switchblock>
+		<switchblock name="subset_straight" type="unidir">
+			<switchblock_location type="EVERYWHERE"/>
+			<switchfuncs>
 					<func type="lr" formula="t"/>
 					<func type="bt" formula="t"/>
 					<func type="rl" formula="t"/>
 					<func type="tb" formula="t"/>
-				</switchfuncs>
-				<wireconn FT="l4" TT="l4" FP="0" TP="0"/>
-				<wireconn FT="l4prime" TT="l4prime" FP="0" TP="0"/>
-				<wireconn FT="l4prime" TT="l4global" FP="0" TP="0"/>
-				<wireconn FT="l4global" TT="l4global" FP="0" TP="0"/>
-				<wireconn FT="l4global" TT="l4prime" FP="0" TP="0"/>
-			</switchblock>
-		</switchblocklist>
+
+			</switchfuncs>
+				<wireconn FT="l4s" TT="l4s" FP="0" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4sprime" FP="0" TP="0"/>
+			<wireconn FT="l4sprime" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4g" FP="0" TP="0"/>
+			<wireconn FT="l4g" TT="l4sprime" FP="0" TP="0"/>
+
+		</switchblock>
+	</switchblocklist>
 
 	  <complexblocklist>
        <!-- Capacity is a unique property of I/Os, it is the maximum number of I/Os that can be placed at the same (X,Y) location on the FPGA -->
@@ -162,7 +192,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
           </interconnect>
         </mode>
 
-        <fc default_in_type="frac" default_in_val="0.10" default_out_type="frac" default_out_val="0.1">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
 
         <!-- IOs go on the periphery of the FPGA, for consistency, 
@@ -351,7 +381,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.10" default_out_type="frac" default_out_val="0.1">
+        <fc default_in_type="frac" default_in_val="0.100000" default_out_type="frac" default_out_val="0.100000">
 	</fc>
 
       <pinlocations pattern="spread"/>
@@ -542,7 +572,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 
       </mode>
 
-        <fc default_in_type="frac" default_in_val="0.10" default_out_type="frac" default_out_val="0.1">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
       <pinlocations pattern="spread"/>
 
@@ -1146,7 +1176,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </mode>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.10" default_out_type="frac" default_out_val="0.1">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
       <pinlocations pattern="spread"/>
 

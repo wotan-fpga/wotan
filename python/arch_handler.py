@@ -5,7 +5,7 @@ from my_regex import *
 #write requirements of this script here
 
 
-arch_base = '/home/oleg/Documents/work/UofT/Grad/my_vtr/wotan/arch'
+arch_base = '/autofs/fs1.ece/fs1.eecg.vaughn/opetelin/wotan/arch'
 
 valid_switchblocks = ['wilton', 'universal', 'subset']
 valid_topologies = ['on-cb-off-cb',
@@ -13,6 +13,10 @@ valid_topologies = ['on-cb-off-cb',
 		    'on-cb-off-cbsb',
 		    'on-cbsb-off-cbsb',
 		    'on-sb-off-sb',
+		    'single-wirelength',
+		    'single-wirelength',
+		    'single-wirelength',
+		    'single-wirelength',
 		    'single-wirelength']
 valid_wirelengths = ['1', '2', '4', '8', '16',
 	'4-4', '4-8', '4-16', '2-4', '2-8', '2-16']
@@ -23,10 +27,10 @@ valid_wirelengths = ['1', '2', '4', '8', '16',
 #key: length1, length2, 4LUT/6LUT, regular/prime
 arch_map = {
 ('1', '',   '6LUT', 'regular'): '6LUT/L1/k6_N10_topology-1.0sL1_22nm.xml',
-('2', '',   '6LUT', 'regular'): '6LUT/L2/k6_N10_topology-1.0sL1_22nm.xml',
-('4', '',   '6LUT', 'regular'): '6LUT/L4/k6_N10_topology-1.0sL1_22nm.xml',
-('8', '',   '6LUT', 'regular'): '6LUT/L8/k6_N10_topology-1.0sL1_22nm.xml',
-('16', '',  '6LUT', 'regular'): '6LUT/L16/k6_N10_topology-1.0sL1_22nm.xml',
+('2', '',   '6LUT', 'regular'): '6LUT/L2/k6_N10_topology-1.0sL2_22nm.xml',
+('4', '',   '6LUT', 'regular'): '6LUT/L4/k6_N10_topology-1.0sL4_22nm.xml',
+('8', '',   '6LUT', 'regular'): '6LUT/L8/k6_N10_topology-1.0sL8_22nm.xml',
+('16', '',  '6LUT', 'regular'): '6LUT/L16/k6_N10_topology-1.0sL16_22nm.xml',
 ('4', '4',  '6LUT', 'regular'): '6LUT/L4-4/k6_N10_topology-0.85sL4-0.15gL4_22nm.xml',
 ('4', '8',  '6LUT', 'regular'): '6LUT/L4-8/k6_N10_topology-0.85sL4-0.15gL8_22nm.xml',
 ('4', '16', '6LUT', 'regular'): '6LUT/L4-16/k6_N10_topology-0.85sL4-0.15gL16_22nm.xml',
@@ -35,10 +39,10 @@ arch_map = {
 ('4', '16', '6LUT', 'prime'):   '6LUT/L4-16/k6_N10_topology-0.55sL4-0.3spL4-0.15gL16_22nm.xml',
 
 ('1', '',   '4LUT', 'regular'): '4LUT_DSP/L1/k4_N8_topology-1.0sL1_22nm.xml',
-('2', '',   '4LUT', 'regular'): '4LUT_DSP/L2/k4_N8_topology-1.0sL1_22nm.xml',
-('4', '',   '4LUT', 'regular'): '4LUT_DSP/L4/k4_N8_topology-1.0sL1_22nm.xml',
-('8', '',   '4LUT', 'regular'): '4LUT_DSP/L8/k4_N8_topology-1.0sL1_22nm.xml',
-('16', '',  '4LUT', 'regular'): '4LUT_DSP/L16/k4_N8_topology-1.0sL1_22nm.xml',
+('2', '',   '4LUT', 'regular'): '4LUT_DSP/L2/k4_N8_topology-1.0sL2_22nm.xml',
+('4', '',   '4LUT', 'regular'): '4LUT_DSP/L4/k4_N8_topology-1.0sL4_22nm.xml',
+('8', '',   '4LUT', 'regular'): '4LUT_DSP/L8/k4_N8_topology-1.0sL8_22nm.xml',
+#('16', '',  '4LUT', 'regular'): '4LUT_DSP/L16/k4_N8_topology-1.0sL16_22nm.xml',
 ('2', '4',  '4LUT', 'regular'): '4LUT_DSP/L2-4/k4_N8_topology-0.85sL2-0.15gL4_22nm.xml',
 ('2', '8',  '4LUT', 'regular'): '4LUT_DSP/L2-8/k4_N8_topology-0.85sL2-0.15gL8_22nm.xml',
 ('2', '16', '4LUT', 'regular'): '4LUT_DSP/L2-16/k4_N8_topology-0.85sL2-0.15gL16_22nm.xml',
@@ -77,7 +81,8 @@ def get_path_to_arch(sb_pattern, wire_topology, wirelengths, global_via_repeat, 
 	cb_depop_string = ''
 	if wire_topology != 'single-wirelength':
 		cb_depop_string = get_cb_depop_string( wirelengths['global'], global_via_repeat )
-	fc_string = get_fc_string(wire_topology, wirelengths, fc_in, fc_out)
+	clb_fc_string = get_fc_string(wire_topology, wirelengths, fc_in, fc_out)
+	other_fc_string = get_fc_string(wire_topology, wirelengths, 1.0, 1.0)
 
 	#print(sb_string)
 	#print(cb_depop_string)
@@ -105,7 +110,7 @@ def get_path_to_arch(sb_pattern, wire_topology, wirelengths, global_via_repeat, 
 
 	#### regex new parameters into reference architecture ####
 	replace_custom_switchblock(reference_arch_path, sb_string)
-	replace_fc(reference_arch_path, fc_string)
+	replace_fc(reference_arch_path, clb_fc_string, other_fc_string)
 	replace_cb_depop(reference_arch_path, cb_depop_string)
 
 	result = reference_arch_path
@@ -116,9 +121,14 @@ def replace_custom_switchblock(arch_path, new_switchblock_string):
 	switchblock_regex = '\h*<switchblocklist>.*</switchblocklist>\h*'
 	replace_pattern_in_file(switchblock_regex, new_switchblock_string, arch_path, multiline=True)
 
-def replace_fc(arch_path, new_fc_string):
+def replace_fc(arch_path, new_clb_fc_string, new_other_fc_string):
+	#make sure all Fc's are set to 1.0...
 	fc_regex = '\h*<fc def[^-]*</fc>\h*'	#hack, but [^-]* catches XML comments and makes sure we don't replace everything between first and last fc
-	replace_pattern_in_file(fc_regex, new_fc_string, arch_path, multiline=True)
+	replace_pattern_in_file(fc_regex, new_other_fc_string, arch_path, multiline=True)
+
+	#now replace the CLB Fc with the intended Fc
+	fc_regex = '\h*<fc def[^-]*</fc>\h*(?!.*pb_type name="clb".*)'
+	replace_pattern_in_file(fc_regex, new_clb_fc_string, arch_path, count=1, multiline=True)
 
 def replace_cb_depop(arch_path, new_cb_depop_string):
 	if new_cb_depop_string == '':
@@ -563,8 +573,8 @@ class ArchException(BaseException):
 if __name__ == '__main__':
 	#### Some test code ####
 	wirelengths = {}
-	lut_size = '4LUT'
-	wirelengths['semi-global'] = 2
+	lut_size = '6LUT'
+	wirelengths['semi-global'] = 4
 	wirelengths['global'] = 8
 	sb_pattern = 'universal'
 	wire_topology = 'on-cbsb-off-cbsb'

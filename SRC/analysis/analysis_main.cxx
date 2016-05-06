@@ -1454,7 +1454,7 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 	int min_dist_sink = ss_distances[sink_node_ind].get_source_distance();
 	int min_dist_source = ss_distances[source_node_ind].get_sink_distance();
 	if (min_dist_sink != min_dist_source){
-		WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
+		//WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
 	}
 
 	max_path_weight = adjust_max_path_weight_based_on_ss_dist(min_dist_sink, max_path_weight);
