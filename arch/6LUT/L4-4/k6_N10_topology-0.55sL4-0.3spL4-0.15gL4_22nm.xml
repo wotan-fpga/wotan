@@ -98,17 +98,17 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 
 		<!-- Define custom switch blocks -->
 		<switchblocklist>
-		<switchblock name="universal_turn_core" type="unidir">
+		<switchblock name="subset_turn_core" type="unidir">
 			<switchblock_location type="CORE"/>
 			<switchfuncs>
-					<func type="lt" formula="W-t-1"/>
+					<func type="lt" formula="t"/>
 					<func type="lb" formula="t"/>
 					<func type="rt" formula="t"/>
-					<func type="br" formula="W-t-1"/>
-					<func type="tl" formula="W-t-1"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
 					<func type="bl" formula="t"/>
 					<func type="tr" formula="t"/>
-					<func type="rb" formula="W-t-1"/>
+					<func type="rb" formula="t"/>
 
 			</switchfuncs>
 				<wireconn FT="l4s" TT="l4s" FP="0" TP="0"/>
@@ -124,17 +124,17 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 			<wireconn FT="l4g" TT="l4sprime" FP="0" TP="0"/>
 
 		</switchblock>
-		<switchblock name="universal_turn_perimeter" type="unidir">
+		<switchblock name="subset_turn_perimeter" type="unidir">
 			<switchblock_location type="PERIMETER"/>
 			<switchfuncs>
-					<func type="lt" formula="W-t-1"/>
+					<func type="lt" formula="t"/>
 					<func type="lb" formula="t"/>
 					<func type="rt" formula="t"/>
-					<func type="br" formula="W-t-1"/>
-					<func type="tl" formula="W-t-1"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
 					<func type="bl" formula="t"/>
 					<func type="tr" formula="t"/>
-					<func type="rb" formula="W-t-1"/>
+					<func type="rb" formula="t"/>
 
 			</switchfuncs>
 				<wireconn FT="l4s" TT="l4s" FP="0,1,2,3" TP="0"/>
@@ -144,7 +144,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 			<wireconn FT="l4g" TT="l4sprime" FP="0" TP="0"/>
 
 		</switchblock>
-		<switchblock name="universal_straight" type="unidir">
+		<switchblock name="subset_straight" type="unidir">
 			<switchblock_location type="EVERYWHERE"/>
 			<switchfuncs>
 					<func type="lr" formula="t"/>
@@ -192,7 +192,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
           </interconnect>
         </mode>
 
-        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.050000">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
 
         <!-- IOs go on the periphery of the FPGA, for consistency, 
@@ -381,7 +381,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.050000">
+        <fc default_in_type="frac" default_in_val="0.100000" default_out_type="frac" default_out_val="0.100000">
 	</fc>
 
       <pinlocations pattern="spread"/>
@@ -572,7 +572,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 
       </mode>
 
-        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.050000">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
       <pinlocations pattern="spread"/>
 
@@ -1176,7 +1176,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </mode>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.050000">
+        <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
 	</fc>
       <pinlocations pattern="spread"/>
 
