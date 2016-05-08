@@ -47,7 +47,7 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			}
 			rr_node[popped_node].increment_demand( demand_contribution );
 
-			/* It is possible to keep a history of how many paths there are connection each source/sink with the
+			/* It is possible to keep a history of how many paths there are connecting each source/sink with the
 			   nearby nodes. This path count history can be used to later subtract the demand due to a source/sink pair
 			   (from nodes being traversed) when analyzing *that specific* source sink pair. Here we make a record
 			   of this node's demand that is due to this source/sink pair */
@@ -159,7 +159,7 @@ static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_n
 	}
 
 	/* now propagate parent path counts to the child */
-	for (int ibucket = parent_dist_to_start; ibucket < num_buckets; ibucket++){	//parent cannot carry paths of weight smaller than itself
+	for (int ibucket = parent_dist_to_start; ibucket < num_buckets; ibucket++){
 
 		/* we're done if this set of paths cannot possibly reach the target node 
 		   in under the minimum allowable path weight */
@@ -185,6 +185,9 @@ static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_n
 		} else {
 			child_buckets[target_bucket] += parent_buckets[ibucket];
 		}
+
+		//TODO: keep incremental track of the demands added by parent_buckets[ibucket] during forward traversal
+		//rr_node[parent_ind].increment_demand_contribution_to_child(edge_number???);
 	}
 }
 

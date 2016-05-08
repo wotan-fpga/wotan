@@ -860,7 +860,7 @@ static float node_demand_metric(User_Options *user_opts, t_rr_node &rr_node){
 void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, int num_threads){
 
 	/* create num_threads-1 threads (the remaining thread is executed in the current context) */
-	for (int ithread = 0; ithread < num_threads; ithread++){
+	for (int ithread = 0; ithread < num_threads-1; ithread++){
 		/* create pthread with default attributes */
 		int result = pthread_create(&threads[ithread], NULL, enumerate_paths_from_source, (void*) &thread_conn_info[ithread]);
 		if (result != 0){
@@ -869,7 +869,7 @@ void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, i
 	}
 
 	/* the last thread is launched here */
-	//enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
+	enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
 
 	/* wait for threads to complete */
 	for (int ithread = 0; ithread < num_threads-1; ithread++){
@@ -900,7 +900,6 @@ void* enumerate_paths_from_source( void *ptr ){
 	int connections_done = 0;
 
 	for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
-	//for (Source_Sink_Pair ss_pair : source_sink_pairs){
 		Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
 		int source_node_ind = ss_pair.source_ind;
 		int sink_node_ind = ss_pair.sink_ind;
@@ -927,6 +926,7 @@ void* enumerate_paths_from_source( void *ptr ){
 
 		/* do-while makes sure that all threads exit at the same time; otherwise pthread barrier will get messed up */
 		do{
+
 			/* Node weights are updated after each thread goes through a certain number of connections */
 			if (connections_done == 300 || thread_done){
 
@@ -1140,7 +1140,7 @@ static void analyze_connection(int source_node_ind, int sink_node_ind, Analysis_
 		return;
 	}
 
-	/* get the fill type descriptor */
+	/* get the fill type descriptor (the most common block in the architecture) */
 	int fill_type_ind = arch_structs->get_fill_type_index();
 	Physical_Type_Descriptor &fill_block_type = arch_structs->block_type[fill_type_ind];
 

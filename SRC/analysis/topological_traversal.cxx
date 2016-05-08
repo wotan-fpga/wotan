@@ -46,10 +46,6 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 			t_usr_child_iterated_func usr_exec_child_iterated,
 			t_usr_traversal_done_func usr_exec_traversal_done){
 
-	int node_ind;
-	int *edge_list;
-	int num_edges;
-
 	/* a queue for traversing the graph */
 	queue<int> Q;
 	
@@ -79,6 +75,10 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 
 	/* now use queue to traverse the graph */
 	while ( !Q.empty() ){
+		int node_ind;
+		int *edge_list;
+		int num_edges;
+
 		node_ind = Q.front();
 		Q.pop();
 

@@ -482,6 +482,11 @@ double RR_Node::get_demand(User_Options *user_opts) const{
 	double return_value;
 
 	if (user_opts->use_routing_node_demand <= 0){
+		////XXX TEST: DELETE ME
+		//e_rr_type my_type = this->get_rr_type();
+		//if (my_type == IPIN || my_type == OPIN)
+		//	return 0.0;
+
 		/* return demand recorded at this node */
 		return_value = this->demand;
 	} else {

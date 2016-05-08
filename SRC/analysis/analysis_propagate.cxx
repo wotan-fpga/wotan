@@ -72,17 +72,21 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 	propagate_structs->prob_routable = get_prob_reachable(source_buckets, num_source_buckets);
 }
 
-/* TODO: comment */
+/* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
+   probability that the node is uncongested */
 static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf){
 	float *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
-	float adjusted_node_demand = node_demand;
+	//float adjusted_node_demand = node_demand;
 
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
 		if (source_buckets[ibucket] != UNDEFINED){
 			//source_buckets[ibucket] = or_two_probs(source_buckets[ibucket], min(1.0F, node_demand));	//unreachability
-			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, adjusted_node_demand));	//reachability
+
+			//Basically AND'ing the probability that the node can be reached via a path of a given weight (ibucket) with the
+			//probability that the node in question is available
+			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, node_demand));		//reachability
 		}
 	}
 }
