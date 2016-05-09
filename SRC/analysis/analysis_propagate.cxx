@@ -92,18 +92,23 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 	//			- It is clear that discount from parent should *only* be applied to those paths which the parent contributed
 	//			- SOLUTION: in topo inf structure, keep another "bucket" to determine demand discounts from parents
 
-	float adjusted_node_demand;
+	vector <bool> discount_bucket_demand;
+	discount_bucket_demand.assign(num_source_buckets, false);
+
 	float demand_discount = 0;
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
 		demand_discount += node_topo_inf[node_ind].demand_discounts[ibucket];
+		if (node_topo_inf[node_ind].demand_discounts[ibucket] > 0.0){
+			discount_bucket_demand[ibucket] = true;
+		}
+
 	}
-	adjusted_node_demand = node_demand - demand_discount;
 
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
-		//float demand_discount = node_topo_inf[node_ind].demand_discounts[ibucket];
-		//float adjusted_node_demand = node_demand;// - demand_discount;
-
-	//	cout << "demand_discount" << demand_discount << endl;
+		float adjusted_node_demand = node_demand;
+		if (discount_bucket_demand[ibucket]){
+			adjusted_node_demand -= demand_discount;
+		}
 
 		if (source_buckets[ibucket] != UNDEFINED){
 			//source_buckets[ibucket] = or_two_probs(source_buckets[ibucket], min(1.0F, node_demand));	//unreachability
