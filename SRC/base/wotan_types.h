@@ -18,8 +18,6 @@
 #define PROBS_EQUAL(f1, f2) (std::fabs(f1 - f2) <= FLOAT_PROB_TOL ? true : false)
 
 
-extern double f_demand_contributions;
-
 
 /**** Enums ****/
 /* used to specify the direction of a routing node. INC/DEC represents

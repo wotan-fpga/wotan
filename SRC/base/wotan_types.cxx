@@ -7,8 +7,6 @@
 using namespace std;
 
 
-double f_demand_contributions = 0;
-
 /* this has to exactly match e_rr_type */
 const string g_rr_type_string[NUM_RR_TYPES]{
 	"SOURCE",
@@ -404,8 +402,10 @@ void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
 void RR_Node::alloc_child_demand_contributions(int max_path_weight){
 
 	if (this->num_child_demand_buckets != UNDEFINED){
-		this->free_child_demand_contributions();
+		//this->free_child_demand_contributions();
 		//WTHROW(EX_INIT, "Node's child demand contributions structure has already been allocated!");
+		//XXX. should not be allocating again. fix this.
+		return;
 	}
 
 	this->child_demand_contributions = new double* [this->get_num_out_edges()];
@@ -413,6 +413,9 @@ void RR_Node::alloc_child_demand_contributions(int max_path_weight){
 	/* allocate "max_path_weight" buckets for each outgoing edge */
 	for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
 		this->child_demand_contributions[iedge] = new double [max_path_weight+1];
+		for (int ibucket = 0; ibucket < max_path_weight+1; ibucket++){
+			this->child_demand_contributions[iedge][ibucket] = 0.0;
+		}
 	}
 
 	this->num_child_demand_buckets = max_path_weight+1;
@@ -520,10 +523,10 @@ double RR_Node::get_demand(User_Options *user_opts) const{
 	double return_value;
 
 	if (user_opts->use_routing_node_demand <= 0){
-		////XXX TEST: DELETE ME
-		//e_rr_type my_type = this->get_rr_type();
-		//if (my_type == IPIN || my_type == OPIN)
-		//	return 0.0;
+		//XXX TEST: DELETE ME
+		e_rr_type my_type = this->get_rr_type();
+		if (my_type == IPIN || my_type == OPIN)
+			return 0.0;
 
 		/* return demand recorded at this node */
 		return_value = this->demand;
@@ -1390,7 +1393,10 @@ void Node_Topological_Info::clear(){
 
 	this->node_waiting_info.clear();
 	this->buckets.clear();
-	this->demand_discounts.clear();
+
+	for (int ibucket = 0; ibucket < this->demand_discounts.size(); ibucket++){
+		this->demand_discounts[ibucket] = 0.0;
+	}
 }
 
 /* sets whether this node has has already been placed onto expansion queue for a traversal from source */

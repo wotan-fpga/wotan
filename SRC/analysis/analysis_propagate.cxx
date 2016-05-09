@@ -21,7 +21,7 @@ using namespace std;
 
 
 /**** Function Declarations ****/
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf);
+static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node);
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight);
@@ -46,7 +46,7 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 	//cout << "   node " << popped_node << "  rr_type: " << rr_node[popped_node].get_rr_type_string() << "  weight: " << node_weight << "  demand: " << node_demand << endl;
 	//cout << "       before: " << rr_node[popped_node].get_demand(user_opts) << endl;
 
-	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf);
+	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node);
 
 }
 
@@ -74,7 +74,7 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 
 /* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
    probability that the node is uncongested */
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf){
+static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node){
 	double *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
@@ -168,9 +168,7 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 		}
 
 		if (traversal_dir == FORWARD_TRAVERSAL){
-			//pthread_mutex_lock(&node_topo_inf[child_ind].my_mutex);
 			node_topo_inf[child_ind].demand_discounts[target_bucket] += rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket];
-			//pthread_mutex_unlock(&node_topo_inf[child_ind].my_mutex);
 		}
 	}
 }

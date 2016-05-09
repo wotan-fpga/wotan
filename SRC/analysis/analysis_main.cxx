@@ -355,8 +355,6 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
 
-	cout << "demand contributions " << f_demand_contributions << endl;
-
 	update_screen(routing_structs, arch_structs, user_opts);
 }
 
