@@ -599,8 +599,8 @@ public:
 	Node_Buckets();
 	Node_Buckets(int max_path_weight_bound);	/* allocates source/sink buckets based on the maximum path weight bound specified */
 
-	float *source_buckets;
-	float *sink_buckets;
+	double *source_buckets;
+	double *sink_buckets;
 
 	/* allocator methods */
 	void alloc_source_sink_buckets(int set_num_source_buckets, int set_num_sink_buckets);
@@ -659,7 +659,7 @@ public:
 	/* used to discount demand contributed to this node by parents for the current s-t connection.
 	   during path propagation, each parent makes a note of how much demand they have contributed to this node
 	   for paths of a given length */
-	std::vector<float> demand_discounts;
+	std::vector<double> demand_discounts;
 
 	/* keeps info that is essential for accessing the corresponding node on a set structure used for breaking cycles */
 	Node_Waiting node_waiting_info;

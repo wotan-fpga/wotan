@@ -26,7 +26,7 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight);
 /* probability that node with specified buckets is reachable from source */
-static float get_prob_reachable( float *source_buckets, int num_source_buckets);
+static float get_prob_reachable( double *source_buckets, int num_source_buckets);
 
 
 
@@ -67,7 +67,7 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
                           e_traversal_dir traversal_dir, int max_path_weight, User_Options *user_opts, void *user_data){
 	Propagate_Structs *propagate_structs = (Propagate_Structs*)user_data;
 
-	float *source_buckets = node_topo_inf[to_node_ind].buckets.source_buckets;
+	double *source_buckets = node_topo_inf[to_node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[to_node_ind].buckets.get_num_source_buckets();
 	propagate_structs->prob_routable = get_prob_reachable(source_buckets, num_source_buckets);
 }
@@ -75,7 +75,7 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 /* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
    probability that the node is uncongested */
 static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf){
-	float *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
+	double *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
 	//TODO: subtract the demand contributed from *valid* parents of this node so we don't count it twice
@@ -115,8 +115,8 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight){
 
-	float *parent_buckets;
-	float *child_buckets;
+	double *parent_buckets;
+	double *child_buckets;
 	int num_buckets;
 	int child_weight = rr_node[child_ind].get_weight();
 	int child_path_weight_to_dest;		//the weight of the minimum-weight path from child to the destination node
@@ -176,7 +176,7 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 }
 
 /* probability that node with specified buckets is reachable from source */
-static float get_prob_reachable( float *source_buckets, int num_source_buckets){
+static float get_prob_reachable( double *source_buckets, int num_source_buckets){
 	
 	float running_total = 0;
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){

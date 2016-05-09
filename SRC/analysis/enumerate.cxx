@@ -109,8 +109,8 @@ static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child
 		WTHROW(EX_PATH_ENUM, "Unknown enumeration mode: " << enumerate_mode);
 	}
 
-	float *parent_buckets;
-	float *child_buckets;
+	double *parent_buckets;
+	double *child_buckets;
 	int num_buckets;
 	int child_dist_to_target = UNDEFINED;	//minimum distance from child to target node
 	int parent_dist_to_start = UNDEFINED;	//minimum distance from parent to start node

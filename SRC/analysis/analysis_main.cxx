@@ -903,6 +903,8 @@ void* enumerate_paths_from_source( void *ptr ){
 
 	int connections_done = 0;
 
+	random_shuffle(source_sink_pairs.begin(), source_sink_pairs.end());
+
 	for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
 		Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
 		int source_node_ind = ss_pair.source_ind;
@@ -1425,7 +1427,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 			int source_sink_hops = ss_distances[sink_node_ind].get_source_hops();
 			Node_Buckets &sink_node_buckets = node_topo_inf[sink_node_ind].buckets;
-			float *source_buckets = sink_node_buckets.source_buckets;
+			double *source_buckets = sink_node_buckets.source_buckets;
 			int num_source_buckets = sink_node_buckets.get_num_source_buckets();
 
 			probability_sink_reachable = analyze_reliability_polynomial(source_sink_hops, source_buckets, num_source_buckets,

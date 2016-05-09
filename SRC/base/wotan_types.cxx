@@ -1247,8 +1247,8 @@ void Node_Buckets::alloc_source_sink_buckets(int set_num_source_buckets, int set
 		WTHROW(EX_INIT, "number of source and sink buckets is expected to be equal");
 	}
 
-	this->source_buckets = new float[set_num_source_buckets];
-	this->sink_buckets = new float[set_num_sink_buckets];
+	this->source_buckets = new double[set_num_source_buckets];
+	this->sink_buckets = new double[set_num_sink_buckets];
 
 	/* initialize to 0 */
 	for (int ibucket = 0; ibucket < set_num_source_buckets; ibucket++){

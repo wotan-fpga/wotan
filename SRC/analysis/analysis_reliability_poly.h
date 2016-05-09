@@ -5,7 +5,7 @@
 
 
 /* computes the reliability polynomial based on the sink node buckets (which contain the number of paths of each length from source to sink) */
-double analyze_reliability_polynomial(int source_sink_hops, float *path_counts, int num_path_lengths, int num_routing_nodes, float routing_node_probability);
+double analyze_reliability_polynomial(int source_sink_hops, double *path_counts, int num_path_lengths, int num_routing_nodes, float routing_node_probability);
 
 
 
