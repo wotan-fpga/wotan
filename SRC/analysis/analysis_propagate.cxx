@@ -23,7 +23,7 @@ using namespace std;
 /**** Function Declarations ****/
 static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf);
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
-static void propagate_probabilities(int parent_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight);
 /* probability that node with specified buckets is reachable from source */
 static float get_prob_reachable( float *source_buckets, int num_source_buckets);
@@ -51,12 +51,12 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 }
 
 /* Called when topological traversal is iterateing over a node's children */
-bool propagate_child_iterated_func(int parent_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+bool propagate_child_iterated_func(int parent_ind, int parent_edge_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
                           e_traversal_dir traversal_dir, int max_path_weight, int from_node_ind, int to_node_ind, User_Options *user_opts, void *user_data){
 	bool ignore_node = false;
 
 	/* propagate the node probabilities (stores in the bucket structure) of the parent node to this node */
-	propagate_probabilities(parent_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight);
+	propagate_probabilities(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight);
 
 	return ignore_node;
 }
@@ -78,22 +78,41 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 	float *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
-	//float adjusted_node_demand = node_demand;
+	//TODO: subtract the demand contributed from *valid* parents of this node so we don't count it twice
+	//Need to know:
+	//	1) The demand contributed by each parent
+	//	2) Which parents are valid in the current s-t connection
+	//
+	//Solution:
+	//	1) Keep this in a vector associated with each child node a node has
+	//	2) Introduce a variable in the topo inf structure of each node -- how much demand is contributed by a node's parents?
+	//		- This can be incremented when a parent visits the child during topological traversal
+	//		- PROBLEM: what if parent contributes a small number of paths (say only weight 8) but and the child then applies
+	//		  the discount to all paths through it? (i.e. weight 1,2,3,4,5, etc)
+	//			- It is clear that discount from parent should *only* be applied to those paths which the parent contributed
+	//			- SOLUTION: in topo inf structure, keep another "bucket" to determine demand discounts from parents
+
+	//float adjusted_node_demand = node_demand - ...;
 
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
+		float demand_discount = node_topo_inf[node_ind].demand_discounts[ibucket];
+		float adjusted_node_demand = node_demand - demand_discount;
+
+	//	cout << "demand_discount" << demand_discount << endl;
+
 		if (source_buckets[ibucket] != UNDEFINED){
 			//source_buckets[ibucket] = or_two_probs(source_buckets[ibucket], min(1.0F, node_demand));	//unreachability
 
 			//Basically AND'ing the probability that the node can be reached via a path of a given weight (ibucket) with the
 			//probability that the node in question is available
-			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, node_demand));		//reachability
+			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, adjusted_node_demand));		//reachability
 		}
 	}
 }
 
 
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
-static void propagate_probabilities(int parent_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight){
 
 	float *parent_buckets;
@@ -146,6 +165,12 @@ static void propagate_probabilities(int parent_ind, int child_ind, t_rr_node &rr
 				//child_buckets[target_bucket] *= parent_buckets[ibucket];	//unreachability
 				child_buckets[target_bucket] = or_two_probs(child_buckets[target_bucket], parent_buckets[ibucket]);	//reachability
 			}
+		}
+
+		if (traversal_dir == FORWARD_TRAVERSAL){
+			//pthread_mutex_lock(&node_topo_inf[child_ind].my_mutex);
+			node_topo_inf[child_ind].demand_discounts[target_bucket] += rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket];
+			//pthread_mutex_unlock(&node_topo_inf[child_ind].my_mutex);
 		}
 	}
 }

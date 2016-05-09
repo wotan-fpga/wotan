@@ -6,6 +6,9 @@
 
 using namespace std;
 
+
+double f_demand_contributions = 0;
+
 /* this has to exactly match e_rr_type */
 const string g_rr_type_string[NUM_RR_TYPES]{
 	"SOURCE",
@@ -351,6 +354,8 @@ RR_Node::RR_Node(){
 	pthread_mutex_init(&this->my_mutex, NULL);
 
 	this->highlight = false;
+
+	this->num_child_demand_buckets = UNDEFINED;
 }
 
 /* allocate the in_edges and in_switches array and sets num_in_edges */
@@ -396,6 +401,37 @@ void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
 	}
 }
 
+void RR_Node::alloc_child_demand_contributions(int max_path_weight){
+
+	if (this->num_child_demand_buckets != UNDEFINED){
+		this->free_child_demand_contributions();
+		//WTHROW(EX_INIT, "Node's child demand contributions structure has already been allocated!");
+	}
+
+	this->child_demand_contributions = new double* [this->get_num_out_edges()];
+
+	/* allocate "max_path_weight" buckets for each outgoing edge */
+	for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
+		this->child_demand_contributions[iedge] = new double [max_path_weight+1];
+	}
+
+	this->num_child_demand_buckets = max_path_weight+1;
+
+}
+
+void RR_Node::free_child_demand_contributions(){
+	if (this->num_child_demand_buckets != UNDEFINED){
+		for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
+			delete [] this->child_demand_contributions[iedge];
+		}
+
+		delete [] this->child_demand_contributions;
+		this->child_demand_contributions = NULL;
+
+		this->num_child_demand_buckets = UNDEFINED;
+	}
+}
+
 /* freen in-edges and switches */
 void RR_Node::free_in_edges_and_switches(){
 	delete [] this->in_edges;
@@ -413,6 +449,7 @@ void RR_Node::free_allocated_members(){
 
 	/* free edges and switches structures */
 	this->free_in_edges_and_switches();
+	this->free_child_demand_contributions();
 
 	/* free path count history structure */
 	if (this->path_count_history_radius > 0){
@@ -445,17 +482,18 @@ void RR_Node::clear_demand(){
 void RR_Node::increment_demand(double value){
 	pthread_mutex_lock(&this->my_mutex);
 	this->demand += value;
+	this->set_weight();
 	pthread_mutex_unlock(&this->my_mutex);
 }
 
 /* sets weight of this node */
 void RR_Node::set_weight(){
 	/* weight of node is its wirelength usage */
-	short x_low, y_low, x_high, y_high;
-	x_low = this->get_xlow();
-	y_low = this->get_ylow();
-	x_high = this->get_xhigh();
-	y_high = this->get_yhigh();
+	//short x_low, y_low, x_high, y_high;
+	//x_low = this->get_xlow();
+	//y_low = this->get_ylow();
+	//x_high = this->get_xhigh();
+	//y_high = this->get_yhigh();
 
 	//float my_weight = (float)(x_high - x_low) + (y_high - y_low);
 	//if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
@@ -1352,6 +1390,7 @@ void Node_Topological_Info::clear(){
 
 	this->node_waiting_info.clear();
 	this->buckets.clear();
+	this->demand_discounts.clear();
 }
 
 /* sets whether this node has has already been placed onto expansion queue for a traversal from source */

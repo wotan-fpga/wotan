@@ -12,7 +12,7 @@ typedef void(*t_usr_node_popped_func)(int popped_node, int from_node_ind, int to
 typedef void(*t_usr_traversal_done_func)(int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, 
                           e_traversal_dir traversal_dir, int max_path_weight, User_Options *user_opts, void *user_data);
 /* function type that is executed while iterating over a node's children (execution not guaranteed) */
-typedef bool(*t_usr_child_iterated_func)(int parent_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+typedef bool(*t_usr_child_iterated_func)(int parent_ind, int parent_edge_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
                           e_traversal_dir traversal_dir, int max_path_weight, int from_node_ind, int to_node_ind, User_Options *user_opts, void *user_data);
 
 

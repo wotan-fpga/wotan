@@ -160,7 +160,7 @@ static void put_children_on_queue_and_update_structs(int *edge_list, int num_nod
 		/* EXECUTE USER-DEFINED FUNCTION */
 		bool ignore_node = false;
 		if (usr_exec_child_iterated != NULL){
-			ignore_node = usr_exec_child_iterated(parent_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, 
+			ignore_node = usr_exec_child_iterated(parent_ind, inode, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, 
 			                                     max_path_weight, from_node_ind, to_node_ind, user_opts, user_data);
 		}
 		if (ignore_node){

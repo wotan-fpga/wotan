@@ -7,6 +7,7 @@ the constituent functions are meant to be passed-in to a topological traversal f
 
 */
 
+#include <pthread.h>
 #include "enumerate.h"
 #include "exception.h"
 #include "wotan_util.h"
@@ -17,10 +18,9 @@ the constituent functions are meant to be passed-in to a topological traversal f
 using namespace std;
 
 
-
 /**** Function Declarations ****/
 /* propagates path counts stored in the bucket structure of the parent node to the bucket structure of the child node */
-static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode);
 
 
@@ -73,7 +73,7 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 }
 
 /* Called when topological traversal is iterateing over a node's children */
-bool enumerate_child_iterated_func(int parent_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+bool enumerate_child_iterated_func(int parent_ind, int parent_edge_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
                           e_traversal_dir traversal_dir, int max_path_weight, int from_node_ind, int to_node_ind, User_Options *user_opts, void *user_data){
 	bool ignore_node = false;
 
@@ -84,7 +84,7 @@ bool enumerate_child_iterated_func(int parent_ind, int node_ind, t_rr_node &rr_n
 	//	cout << "from: " << from_node_ind << "  to: " << to_node_ind << endl;
 	//	cout << "child: " << node_ind << "  parent: " << parent_ind << endl;
 	//}
-	propagate_path_counts(parent_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight, enumerate_structs->mode);
+	propagate_path_counts(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight, enumerate_structs->mode);
 
 	//if (from_node_ind == 5784 && to_node_ind == 6950){
 	//	cout << parent_ind << " to " << node_ind << endl;
@@ -102,7 +102,7 @@ void enumerate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 
 
 /* propagates path counts stored in the bucket structure of the parent node to the bucket structure of the child node */
-static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode){
 
 	if (enumerate_mode != BY_PATH_WEIGHT && enumerate_mode != BY_PATH_HOPS){
@@ -186,8 +186,13 @@ static void propagate_path_counts(int parent_ind, int child_ind, t_rr_node &rr_n
 			child_buckets[target_bucket] += parent_buckets[ibucket];
 		}
 
-		//TODO: keep incremental track of the demands added by parent_buckets[ibucket] during forward traversal
-		//rr_node[parent_ind].increment_demand_contribution_to_child(edge_number???);
+		if (traversal_dir == FORWARD_TRAVERSAL){
+			//TODO: keep incremental track of the demands contributed to children (for each possible path weight)
+			pthread_mutex_lock(&rr_node[parent_ind].my_mutex);
+			rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket] += parent_buckets[ibucket];
+			f_demand_contributions += parent_buckets[ibucket];
+			pthread_mutex_unlock(&rr_node[parent_ind].my_mutex);
+		}
 	}
 }
 

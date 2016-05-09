@@ -18,6 +18,8 @@
 #define PROBS_EQUAL(f1, f2) (std::fabs(f1 - f2) <= FLOAT_PROB_TOL ? true : false)
 
 
+extern double f_demand_contributions;
+
 
 /**** Enums ****/
 /* used to specify the direction of a routing node. INC/DEC represents
@@ -280,7 +282,7 @@ private:
 	   this variable marks the index of the corresponding virtual source. */
 	int virtual_source_node_ind;
 
-	pthread_mutex_t my_mutex;
+	int num_child_demand_buckets;
 
 protected:
 	/* Increments + returns path count history, or simply returns path count history
@@ -288,6 +290,8 @@ protected:
 	float access_path_count_history(float increment_val, RR_Node &target_node, bool increment);
 
 public:
+	pthread_mutex_t my_mutex;
+
 	RR_Node();
 
 	bool highlight;
@@ -296,15 +300,20 @@ public:
 	int *in_edges;					/* a list of rr nodes *from* which this node receives connections [0..get_num_in_edges()-1] */
 	short *in_switches;				/* a list of switches which are used by the edges linking into this node */
 
+	//XXX COMMENT
+	//TODO: make this float if possible
+	double **child_demand_contributions;
+
 
 	/* allocator functions */
 	void alloc_in_edges_and_switches(short);
-
 	void alloc_source_sink_path_history(int num_lb_sources_and_sinks);
+	void alloc_child_demand_contributions(int max_path_weight);
 
-	/* freeing functions */
+	/* free functions */
 	void free_in_edges_and_switches();
 	void free_allocated_members();
+	void free_child_demand_contributions();
 
 	/* set methods */
 	void clear_demand();
@@ -640,11 +649,17 @@ protected:
 	/* returns number of legal nodes on specified edge list */
 	short get_num_legal_nodes(int *edge_list, int num_edges, t_rr_node &rr_node, t_ss_distances &ss_distances, int max_path_weight);
 public:
-	
+	pthread_mutex_t my_mutex;
+
 	Node_Topological_Info();
 
 	/* used to limit which paths are considered during topological path enumeration, based on path weight */
 	Node_Buckets buckets;
+
+	/* used to discount demand contributed to this node by parents for the current s-t connection.
+	   during path propagation, each parent makes a note of how much demand they have contributed to this node
+	   for paths of a given length */
+	std::vector<float> demand_discounts;
 
 	/* keeps info that is essential for accessing the corresponding node on a set structure used for breaking cycles */
 	Node_Waiting node_waiting_info;

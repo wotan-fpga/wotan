@@ -212,7 +212,7 @@ void* enumerate_paths_from_source( void *ptr );
 void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int num_threads, int num_nodes);
 
 /* allocates node topological traversal info vector for each thread */
-void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, int num_nodes);
+void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, t_rr_node &rr_node, int num_nodes);
 
 /* allocates a t_nodes_visited structure for each thread */
 void alloc_thread_nodes_visited(t_thread_nodes_visited &thread_nodes_visited, int num_threads, int num_nodes);
@@ -355,6 +355,8 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
 
+	cout << "demand contributions " << f_demand_contributions << endl;
+
 	update_screen(routing_structs, arch_structs, user_opts);
 }
 
@@ -406,6 +408,8 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	node_topo_inf.assign(num_rr_nodes, Node_Topological_Info());
 	for (int inode = 0; inode < num_rr_nodes; inode++){
 		node_topo_inf[inode].buckets.alloc_source_sink_buckets(large_max_path_weight+1, large_max_path_weight+1);
+		node_topo_inf[inode].demand_discounts.assign(large_max_path_weight+1, 0.0);
+		rr_node[inode].alloc_child_demand_contributions(large_max_path_weight+1);
 	}
 
 	/* perform path enumeration */
@@ -479,7 +483,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	cout << "absolute max possible path weight is: " << max_path_weight_bound << endl;
 
 	alloc_thread_ss_distances(thread_ss_distances, num_threads, (int)routing_structs->get_num_rr_nodes());
-	alloc_thread_node_topo_inf(thread_node_topo_inf, num_threads, max_path_weight_bound, (int)routing_structs->get_num_rr_nodes());
+	alloc_thread_node_topo_inf(thread_node_topo_inf, num_threads, max_path_weight_bound, routing_structs->rr_node, (int)routing_structs->get_num_rr_nodes());
 	alloc_thread_nodes_visited(thread_nodes_visited, num_threads, (int)routing_structs->get_num_rr_nodes());
 	alloc_thread_conn_info(thread_conn_info, num_threads);
 	alloc_threads(threads, num_threads);
@@ -914,45 +918,45 @@ void* enumerate_paths_from_source( void *ptr ){
 
 
 
-		/***** WEIRD THREAD SYNCHRONIZATION -- Updating Node Weights *****/
-		/* threads will exit at the same time when the active thread count drops to 0 */
-		bool thread_done = false;
-		if (ipair == (int)source_sink_pairs.size()-1){
-			thread_done = true;
-			pthread_mutex_lock(&f_analysis_results.thread_mutex);
-			f_analysis_results.active_threads--;
-			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-		}
+		///***** WEIRD THREAD SYNCHRONIZATION -- Updating Node Weights *****/
+		///* threads will exit at the same time when the active thread count drops to 0 */
+		//bool thread_done = false;
+		//if (ipair == (int)source_sink_pairs.size()-1){
+		//	thread_done = true;
+		//	pthread_mutex_lock(&f_analysis_results.thread_mutex);
+		//	f_analysis_results.active_threads--;
+		//	pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+		//}
 
-		/* do-while makes sure that all threads exit at the same time; otherwise pthread barrier will get messed up */
-		do{
+		///* do-while makes sure that all threads exit at the same time; otherwise pthread barrier will get messed up */
+		//do{
 
-			/* Node weights are updated after each thread goes through a certain number of connections */
-			if (connections_done == 300 || thread_done){
+		//	/* Node weights are updated after each thread goes through a certain number of connections */
+		//	if (connections_done == 300 || thread_done){
 
-				pthread_barrier_wait(&f_analysis_results.thread_barrier);
+		//		pthread_barrier_wait(&f_analysis_results.thread_barrier);
 
-				/* update node weights based on their demands; synchronize between threads */
-				if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
-					/* this thread will do the node weight updates */				
-			
-					for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
-						routing_structs->rr_node[inode].set_weight();
-					}
+		//		/* update node weights based on their demands; synchronize between threads */
+		//		if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
+		//			/* this thread will do the node weight updates */				
+		//	
+		//			for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
+		//				routing_structs->rr_node[inode].set_weight();
+		//			}
 
-					pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-				} else {
-					/* all other threads synchronize here */
-					pthread_mutex_lock(&f_analysis_results.thread_mutex);
-					pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-				}
-				connections_done = 0;
+		//			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+		//		} else {
+		//			/* all other threads synchronize here */
+		//			pthread_mutex_lock(&f_analysis_results.thread_mutex);
+		//			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
+		//		}
+		//		connections_done = 0;
 
-			}
+		//	}
 
-			connections_done++;
+		//	connections_done++;
 
-		} while (thread_done && f_analysis_results.active_threads != 0);
+		//} while (thread_done && f_analysis_results.active_threads != 0);
 	}
 
 	return (void*) NULL;
@@ -1090,12 +1094,15 @@ void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int n
 
 
 /* allocates node topological traversal info vector for each thread */
-void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, int num_nodes){
+void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, t_rr_node &rr_node, int num_nodes){
 	thread_node_topo_inf.assign(num_threads, t_node_topo_inf(num_nodes, Node_Topological_Info()));
-	for (int ithread = 0; ithread < num_threads; ithread++){
-		for (int inode = 0; inode < num_nodes; inode++){
+	for (int inode = 0; inode < num_nodes; inode++){
+		for (int ithread = 0; ithread < num_threads; ithread++){
 			thread_node_topo_inf[ithread][inode].buckets.alloc_source_sink_buckets(max_path_weight_bound+1, max_path_weight_bound+1);
+			thread_node_topo_inf[ithread][inode].demand_discounts.assign(max_path_weight_bound+1, 0.0);
 		}
+		//FIXME: this should be in a separate function
+		rr_node[inode].alloc_child_demand_contributions(max_path_weight_bound+1);
 	}
 }
 
