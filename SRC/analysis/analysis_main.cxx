@@ -53,7 +53,7 @@ using namespace std;
 				//After that re-enable pin demands... were my previous tests with or without them? :|
 				//TODO: switch to cutline for shits and giggles?
 
-#define FRACTION_CONNS 0.1
+#define FRACTION_CONNS 0.5
 
 
 /************ Forward-Declarations ************/
@@ -341,7 +341,7 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 		/* set the bounded priority queue entries limit w.r.t. to the "..._conns_at_length" stats */
 		if (driver_conns_at_length[ilen] > 0){
 			//int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * FRACTION_CONNS;		//XXX
-			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * user_opts->length_probabilities[ilen];
+			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * user_opts->length_probabilities[ilen] * FRACTION_CONNS;
 			cout << "len" << ilen << " entries " << driver_entries_limit << endl;
 			f_analysis_results.lowest_probs_pqs_drivers[ilen].set_properties( driver_entries_limit );
 		}
@@ -605,21 +605,26 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	/* calculate metrics */
 
 	double total_demand = 0;
+	double IPIN_demand = 0;
 	double squared_demand = 0;
 
 	/* calculate some node demand-related metrics */
 	int num_nodes = routing_structs->get_num_rr_nodes();
 	int num_routing_nodes = 0;
+	int num_ipin_nodes = 0;
 	for (int inode = 0; inode < num_nodes; inode++){
 		RR_Node &node = routing_structs->rr_node[inode];
 		e_rr_type type = node.get_rr_type();
+		double demand = node.get_demand(user_opts);
 		if (type == CHANX || type == CHANY){
-				double demand = node.get_demand(user_opts);
 				//cout << " n" << inode << " demand: " << demand << endl;
 				total_demand += demand;
 				squared_demand += demand*demand;
 
 				num_routing_nodes++;
+		} else if (type == IPIN) {
+			IPIN_demand += demand;
+			num_ipin_nodes++;
 		}
 	}
 	
@@ -630,11 +635,13 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 
 		float normalized_demand = node_demand_metric(user_opts, routing_structs->rr_node);
 		cout << "fraction enumerated: " << (float)f_analysis_results.num_conns / (float)f_analysis_results.desired_conns << endl;
-		cout << "Total demand: " << total_demand << endl;
-		cout << "Total squared demand: " << squared_demand << endl;
-		cout << "Normalized demand: " << normalized_demand << endl; //total_demand / (double)num_routing_nodes << endl;
+		cout << "Total CHANX/CHANY demand: " << total_demand << endl;
+		cout << "Total IPIN demand: " << IPIN_demand << endl;
+		cout << "Normalized IPIN demand: " << IPIN_demand / (float)num_ipin_nodes << endl;
+		cout << "Total CHANX/CHANY squared demand: " << squared_demand << endl;
+		cout << "Normalized CHANX/CHANY demand: " << normalized_demand << endl; //total_demand / (double)num_routing_nodes << endl;
 		cout << "  num routing nodes: " << num_routing_nodes << endl;
-		cout << "Normalized squared demand: " << squared_demand / (double)num_routing_nodes << endl;
+		cout << "Normalized CHANX/CHANY squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
 	} else {
 		float opin_prob = user_opts->opin_probability;
@@ -784,7 +791,7 @@ static void get_corresponding_sink_ids(User_Options *user_opts, Analysis_Setting
 						//XXX
 						double rand_value = (double)rand() / (double)(RAND_MAX);
 						//if (rand_value > FRACTION_CONNS){
-						if (rand_value > user_opts->length_probabilities[ilen]){
+						if (rand_value > user_opts->length_probabilities[ilen] * FRACTION_CONNS){
 							continue;
 						}
 
@@ -901,7 +908,7 @@ void* enumerate_paths_from_source( void *ptr ){
 
 	int connections_done = 0;
 
-	random_shuffle(source_sink_pairs.begin(), source_sink_pairs.end());
+	//random_shuffle(source_sink_pairs.begin(), source_sink_pairs.end());
 
 	for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
 		Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
