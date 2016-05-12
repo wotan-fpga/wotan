@@ -50,6 +50,10 @@ class Wotan_Exception{
 		line = l;
 		type = t;
 	}
+
+	std::string what(){
+		return this->message;
+	}
 };
 /* overlaod << operator for use by cout */
 std::ostream& operator<<(std::ostream &os, const Wotan_Exception& ex);
