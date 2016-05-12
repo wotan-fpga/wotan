@@ -322,7 +322,7 @@ public:
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
-	float get_weight() const;
+	float get_weight();
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.

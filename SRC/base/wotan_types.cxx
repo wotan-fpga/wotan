@@ -549,8 +549,11 @@ short RR_Node::get_num_in_edges() const{
 }
 
 /* returns weight of this node */
-float RR_Node::get_weight() const{
-	return this->weight;
+float RR_Node::get_weight(){
+	pthread_mutex_lock(&this->my_mutex);
+	float _weight = this->weight;
+	pthread_mutex_unlock(&this->my_mutex);
+	return _weight;
 }
 
 /* returns index of virtual source node corresponding to this node */
