@@ -555,7 +555,7 @@ class Wotan_Tester:
 				target_tolerance = None,
 				target_regex = None,
 				demand_mult_low = 0.0,
-				demand_mult_high = 10,
+				demand_mult_high = 50,
 				max_tries = 15):
 		
 		if '-demand_multiplier' in wotan_opts:
@@ -1134,11 +1134,11 @@ class Wotan_Tester:
 		#specifies how architectures should be evaluated.
 		#binary search over pin demand until target prob is hit with specified tolerance
 		target_prob = 0.5
-		target_tolerance = 0.005
+		target_tolerance = 0.01
 		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
 		#a list of channel widths over which to evaluate w/ wotan (i.e. geomean)
-		chan_widths = [50, 70, 90]
+		chan_widths = [70]
 		
 
 		wotan_results = []
@@ -1153,7 +1153,6 @@ class Wotan_Tester:
 
 
 			###### Use VPR to dump out the RR graph corresponding to this architecture ######
-			self.change_vpr_rr_struct_dump(self.vpr_path, enable=True)
 			self.make_wotan()
 			self.make_vpr()
 
@@ -1166,7 +1165,7 @@ class Wotan_Tester:
 			for chanw in chan_widths:
 				print('W = ' + str(chanw))
 
-				vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -nodisp -route_chan_width ' + str(chanw)
+				vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -nodisp -pack -place -route_chan_width ' + str(chanw)
 				self.run_vpr( vpr_opts )
 
 				#run binary search to find pin demand at which the target_regex hits its target value 
@@ -1199,7 +1198,7 @@ class Wotan_Tester:
 				self.update_arch_based_on_arch_point(vpr_arch_path, arch_point)
 
 				results = self.run_vpr_benchmarks_multiple_seeds(benchmarks, vpr_regex_list, vpr_arch_path,
-										 vpr_seed_list = [1,2,3],			#run VPR over three seeds
+										 vpr_seed_list = [1],			#run VPR over three seeds
 										 num_threads = 7)
 
 				#add VPR result to running list

@@ -4,9 +4,10 @@ import numpy as np
 import wotan_tester as wt
 
 ############ Paths ############
-base_path = "/home/oleg/Documents/work/UofT/Grad"
-vtr_path = base_path + "/vtr-verilog-to-routing"
-wotan_path = base_path + "/my_vtr/wotan"
+
+base_path = "/autofs/fs1.ece/fs1.eecg.vaughn/opetelin"
+vtr_path = base_path + "/vtr"
+wotan_path = base_path + "/wotan"
 
 #arch_dir = vtr_path + '/vtr_flow/arch/timing'
 arch_dir = wotan_path + '/arch'
@@ -63,7 +64,7 @@ regex_Rel = (
 
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history y'
+wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 4 -keep_path_count_history n'
 wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
 
@@ -269,9 +270,9 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
 arch_list = wt.my_custom_archs_list(arch_dictionaries)
-#vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
+vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
 #arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
-vpr_arch_ordering = []
+#vpr_arch_ordering = []
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
