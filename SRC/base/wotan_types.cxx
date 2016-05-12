@@ -156,7 +156,7 @@ void Analysis_Settings::alloc_and_set_test_tile_coords(Arch_Structs *arch_struct
 int Analysis_Settings::get_max_path_weight(int conn_length){
 	/* this is a provisional scheme; will probably change later. but for now will set max
 	   path weight to give some flexibility in enumerating paths of the connection */
-	int max_path_weight = 15 + conn_length*1.3;
+	int max_path_weight = 15 + conn_length*3;
 	return max_path_weight;
 }
 /*==== END Analysis_Settings Class ====*/
@@ -179,19 +179,50 @@ RR_Node_Base::RR_Node_Base(){
 	this->out_switches = NULL;
 }
 
+RR_Node_Base::RR_Node_Base(const RR_Node_Base &obj){
+
+	this->type = obj.get_rr_type();
+	this->xlow = obj.get_xlow();
+	this->ylow = obj.get_ylow();
+	this->span = obj.get_span();
+	this->R = obj.get_R();
+	this->C = obj.get_C();
+	this->ptc_num = obj.get_ptc_num();
+	this->fan_in = obj.get_fan_in();
+	this->num_out_edges = obj.get_num_out_edges();
+	this->direction = obj.get_direction();
+
+	this->alloc_out_edges_and_switches(obj.num_out_edges);
+
+	for (int iedge = 0; iedge < obj.num_out_edges; iedge++){
+		this->out_edges[iedge] = obj.out_edges[iedge];
+		this->out_switches[iedge] = obj.out_switches[iedge];
+	}
+}
+
 /* frees allocated members */
 void RR_Node_Base::free_allocated_members(){
-	delete [] this->out_edges;
-	delete [] this->out_switches;
+	//XXX this wont work with virtual sources without copy constructors
+
+	if (!this->out_edges)
+		delete [] this->out_edges;
+	if (!this->out_switches)
+		delete [] this->out_switches;
 	this->out_edges = NULL;
 	this->out_switches = NULL;
 }
 
 /* Allocates edge array and switch array, and sets num_out_edges */
 void RR_Node_Base::alloc_out_edges_and_switches(short n_edges){
-	this->out_edges = new int[n_edges];
-	this->out_switches = new short[n_edges];
-	this->num_out_edges = n_edges;
+	if (n_edges > 0){
+		this->out_edges = new int[n_edges];
+		this->out_switches = new short[n_edges];
+		this->num_out_edges = n_edges;
+	} else {
+		this->out_edges = NULL;
+		this->out_switches = NULL;
+		this->num_out_edges = UNDEFINED;
+	}
 }
 
 /* get the rr type of this node */
@@ -353,14 +384,50 @@ RR_Node::RR_Node(){
 
 	this->highlight = false;
 
+	this->source_sink_path_history = NULL;
+
 	this->num_child_demand_buckets = UNDEFINED;
+	this->child_demand_contributions = NULL;
+}
+
+RR_Node::~RR_Node(){
+	this->free_allocated_members();
+	pthread_mutex_destroy(&this->my_mutex);
+}
+
+RR_Node::RR_Node(const RR_Node &obj) : RR_Node_Base(obj){
+
+	this->num_in_edges = obj.get_num_in_edges();
+	this->weight = obj.get_weight();
+	this->demand = obj.get_demand(NULL);
+	this->num_lb_sources_and_sinks = obj.num_lb_sources_and_sinks;
+	this->virtual_source_node_ind = obj.get_virtual_source_node_ind();
+	this->num_child_demand_buckets = obj.num_child_demand_buckets;
+	pthread_mutex_init(&this->my_mutex, NULL);
+	this->highlight = obj.highlight;
+
+	//TODO: copy over source-sink path history if you still want to use that
+	this->path_count_history_radius = UNDEFINED;
+
+	this->alloc_in_edges_and_switches(obj.num_in_edges);
+
+	for (int iedge = 0; iedge < obj.num_in_edges; iedge++){
+		this->in_edges[iedge] = obj.in_edges[iedge];
+		this->in_switches[iedge] = obj.in_switches[iedge];
+	}
 }
 
 /* allocate the in_edges and in_switches array and sets num_in_edges */
 void RR_Node::alloc_in_edges_and_switches(short n_edges){
-	this->in_edges = new int[n_edges];
-	this->in_switches = new short[n_edges];
-	this->num_in_edges = n_edges;
+	if (n_edges > 0){
+		this->in_edges = new int[n_edges];
+		this->in_switches = new short[n_edges];
+		this->num_in_edges = n_edges;
+	} else {
+		this->in_edges = NULL;
+		this->in_switches = NULL;
+		this->num_in_edges = UNDEFINED;
+	}
 }
 
 /* allocate source/sink path history structure */
@@ -408,6 +475,10 @@ void RR_Node::alloc_child_demand_contributions(int max_path_weight){
 		return;
 	}
 
+	if (this->get_num_out_edges() <= 0){
+		return;
+	}
+
 	this->child_demand_contributions = new double* [this->get_num_out_edges()];
 
 	/* allocate "max_path_weight" buckets for each outgoing edge */
@@ -437,8 +508,10 @@ void RR_Node::free_child_demand_contributions(){
 
 /* freen in-edges and switches */
 void RR_Node::free_in_edges_and_switches(){
-	delete [] this->in_edges;
-	delete [] this->in_switches;
+	if (!this->in_edges)
+		delete [] this->in_edges;
+	if (!this->in_switches)
+		delete [] this->in_switches;
 	this->in_edges = NULL;
 	this->in_switches = NULL;
 
@@ -522,6 +595,10 @@ void RR_Node::set_virtual_source_node_ind(int node_ind){
 double RR_Node::get_demand(User_Options *user_opts) const{
 	double return_value;
 
+	if (user_opts == NULL){
+		return this->demand;
+	}
+
 	if (user_opts->use_routing_node_demand <= 0){
 		//XXX TEST: DELETE ME
 		//e_rr_type my_type = this->get_rr_type();
@@ -549,10 +626,10 @@ short RR_Node::get_num_in_edges() const{
 }
 
 /* returns weight of this node */
-float RR_Node::get_weight(){
-	pthread_mutex_lock(&this->my_mutex);
+float RR_Node::get_weight() const{
+	//pthread_mutex_lock(&this->my_mutex);
 	float _weight = this->weight;
-	pthread_mutex_unlock(&this->my_mutex);
+	//pthread_mutex_unlock(&this->my_mutex);
 	return _weight;
 }
 
@@ -1238,6 +1315,17 @@ bool Node_Waiting::operator < (const Node_Waiting &obj) const{
 Node_Buckets::Node_Buckets(){
 	this->num_source_buckets = UNDEFINED;
 	this->num_sink_buckets = UNDEFINED;
+	this->source_buckets = NULL;
+	this->sink_buckets = NULL;
+}
+
+Node_Buckets::~Node_Buckets(){
+	delete [] this->source_buckets;
+	delete [] this->sink_buckets;
+	this->source_buckets = NULL;
+	this->sink_buckets = NULL;
+	this->num_source_buckets = UNDEFINED;
+	this->num_sink_buckets = UNDEFINED;
 }
 
 Node_Buckets::Node_Buckets(int max_path_weight_bound){
@@ -1331,6 +1419,10 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 	float incremental_sink_paths = 0;
 	int next_j = my_node_weight + 1;
 
+	if (next_j >= this->num_sink_buckets){
+		WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
+	}
+
 	for (int j = 0; j < next_j; j++){
 		if (this->sink_buckets[j] != UNDEFINED){
 			incremental_sink_paths += this->sink_buckets[j];
@@ -1338,6 +1430,13 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 	}
 
 	for (int i = max_path_weight; i >= my_dist_to_source; i--){
+		if (next_j >= this->num_sink_buckets){
+			WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
+		}
+		if (i >= this->num_source_buckets){
+			WTHROW(EX_PATH_ENUM, "Out of bounds: " << " i: " << i << " source_buckets: " << this->num_source_buckets);
+		}
+
 		if (this->source_buckets[i] != UNDEFINED){
 			paths_through_node += this->source_buckets[i] * incremental_sink_paths;
 		}
@@ -1379,6 +1478,11 @@ float Node_Buckets::get_probability_not_reachable(int my_node_weight, float my_n
 /*==== Node_Topological_Info Class ====*/
 Node_Topological_Info::Node_Topological_Info(){
 	this->clear();
+	pthread_mutex_init(&this->my_mutex, NULL);
+}
+
+Node_Topological_Info::~Node_Topological_Info(){
+	pthread_mutex_destroy(&this->my_mutex);
 }
 
 /* resets variables. does not deallocate node buckets structure (only clears contents) */

@@ -212,6 +212,7 @@ private:
 public:
 
 	RR_Node_Base();
+	RR_Node_Base(const RR_Node_Base &obj);
 
 	int *out_edges;					/* a list of rr nodes *to* which this node connects [0..get_num_out_edges()-1] */
 	short *out_switches;				/* a list of switches which are used by the edges emanating from this node */
@@ -256,7 +257,6 @@ private:
 	float weight;					/* weight of this node */
 	double demand;					/* fractional demand for this node. used for routability analysis */
 
-	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
 	
 
 	/* each node keeps track of the number of paths from/to all nearby sources/sinks that are within the 
@@ -280,7 +280,6 @@ private:
 	   this variable marks the index of the corresponding virtual source. */
 	int virtual_source_node_ind;
 
-	int num_child_demand_buckets;
 
 protected:
 	/* Increments + returns path count history, or simply returns path count history
@@ -288,9 +287,13 @@ protected:
 	float access_path_count_history(float increment_val, RR_Node &target_node, bool increment);
 
 public:
+	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
+	int num_child_demand_buckets;
 	pthread_mutex_t my_mutex;
 
 	RR_Node();
+	~RR_Node();
+	RR_Node(const RR_Node &obj);
 
 	bool highlight;
 
@@ -322,7 +325,7 @@ public:
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
-	float get_weight();
+	float get_weight() const;
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
@@ -596,6 +599,7 @@ public:
 
 	Node_Buckets();
 	Node_Buckets(int max_path_weight_bound);	/* allocates source/sink buckets based on the maximum path weight bound specified */
+	~Node_Buckets();
 
 	double *source_buckets;
 	double *sink_buckets;
@@ -650,6 +654,7 @@ public:
 	pthread_mutex_t my_mutex;
 
 	Node_Topological_Info();
+	~Node_Topological_Info();
 
 	/* used to limit which paths are considered during topological path enumeration, based on path weight */
 	Node_Buckets buckets;

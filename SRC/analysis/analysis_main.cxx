@@ -921,14 +921,10 @@ void* enumerate_paths_from_source( void *ptr ){
 						source_conns_at_length, nodes_visited, topological_mode, user_opts);
 		}
 
-	} catch (exception &e){
-		cerr << endl << "Thread caught exception: " << e.what() << endl;
-		throw;
 	} catch (Wotan_Exception &e){
 		cerr << endl << "Thread caught exception: " << e.what() << endl;
-		throw;
-	} catch (...){
-		cerr << endl << "Thread caught unknown exception" << endl;
+		cerr << "LINE: " << e.line << endl;
+		cerr << "FILE: " << e.file << endl;
 		throw;
 	}
 
@@ -1069,6 +1065,7 @@ void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int n
 /* allocates node topological traversal info vector for each thread */
 void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, t_rr_node &rr_node, int num_nodes){
 	thread_node_topo_inf.assign(num_threads, t_node_topo_inf(num_nodes, Node_Topological_Info()));
+
 	for (int inode = 0; inode < num_nodes; inode++){
 		for (int ithread = 0; ithread < num_threads; ithread++){
 			thread_node_topo_inf[ithread][inode].buckets.alloc_source_sink_buckets(max_path_weight_bound+1, max_path_weight_bound+1);
@@ -1208,8 +1205,9 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 	int min_dist = UNDEFINED;
 
 	/* set node distances for potentially relevant portion of graph */
-	set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
-	set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
+	//XXX: set_node_distances is included in get_ss_distances_and_adjust_max_path_weight. so is this a mistake?
+	//set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
+	//set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
 
 	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
 					nodes_visited, &max_path_weight, &min_dist);
@@ -1465,7 +1463,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
-	My_Bounded_Priority_Queue< int > PQ( max_path_weight*2 );
+	My_Bounded_Priority_Queue< int > PQ( max_path_weight*4 );
 	int *edge_list;
 	int num_children;
 
