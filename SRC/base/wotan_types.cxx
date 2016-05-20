@@ -156,7 +156,7 @@ void Analysis_Settings::alloc_and_set_test_tile_coords(Arch_Structs *arch_struct
 int Analysis_Settings::get_max_path_weight(int conn_length){
 	/* this is a provisional scheme; will probably change later. but for now will set max
 	   path weight to give some flexibility in enumerating paths of the connection */
-	int max_path_weight = 15 + conn_length*3;
+	int max_path_weight = 15 + conn_length*1.3;	//XXX why does increasing max path weight lead to better results when 100% of connections are still being enumerated???
 	return max_path_weight;
 }
 /*==== END Analysis_Settings Class ====*/
@@ -579,7 +579,7 @@ void RR_Node::set_weight(){
 
 	float my_weight = 0.0;
 	if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-		my_weight = 1.0 + this->demand*((float)this->get_span());// + 1.0);
+		my_weight = 1.0 + min(this->demand, 1.0)*((float)this->get_span());// + 1.0);
 		my_weight = ceil(my_weight);
 	}
 	
