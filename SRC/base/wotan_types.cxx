@@ -656,80 +656,23 @@ float RR_Node::get_weight(void) const{
 }
 
 /* returns the weight to traverse from the start point of the current node to the start point of the target node */
-float RR_Node::get_weight_to_node(RR_Node const &target_node, e_traversal_dir traversal_dir) const{
+float RR_Node::get_weight_to_node(int edge_index, e_traversal_dir traversal_dir) const{
 	int weight_to_node = 0;
 
-	//TODO: what if we are doing a backwards traversal??
+	Coordinate edge_coord;
 
-	int from_x, from_y, to_x, to_y;
-	e_rr_type from_type = this->get_rr_type();
-	e_rr_type to_type = target_node.get_rr_type();
+	WTHROW(EX_PATH_ENUM, "Not implemented!");
 
-	bool from_coords_low = true;
-	bool to_coords_low = true;
-	
-	from_x = this->get_xlow();
-	from_y = this->get_ylow();
-
-	to_x = target_node.get_xlow();
-	to_y = target_node.get_ylow();
-
-	/* adjust start coordinates of the from node */
-	if (from_type == CHANX || from_type == CHANY){
-		e_direction my_direction = this->get_direction();
-		if (my_direction == BI_DIRECTION){
-			WTHROW(EX_PATH_ENUM, "Node weight for bidirectional wires is currently not supported");
-		}
-		if (my_direction == DEC_DIRECTION){
-			from_x = this->get_xhigh();
-			from_y = this->get_yhigh();
-			from_coords_low = false;
-		}
+	if (traversal_dir == FORWARD_TRAVERSAL){
+		
+	} else if (traversal_dir == BACKWARD_TRAVERSAL){
+		//XXX problem is, we don't know what edge we arrived to the starting node by. may even be a couple of edges at different coordinates...
+		//so, i mean, what if it's a very long wire? there can be a very big weight difference depending through which incoming edge we came in...
+		//a;sdlkfja;sdlkfjas;ldfkja;sldfkjasf
+	} else {
+		WTHROW(EX_PATH_ENUM, "Unexpected traversal direction: " << traversal_dir);
 	}
 
-	/* adjust start coordinates of the target node */
-	if (to_type == CHANX || to_type == CHANY){
-		e_direction target_direction = target_node.get_direction();
-		if (target_direction == BI_DIRECTION){
-			WTHROW(EX_PATH_ENUM, "Node weight for bidirectional wires is currently not supported");
-		}
-		if (target_direction == DEC_DIRECTION){
-			to_x = target_node.get_xhigh();
-			to_y = target_node.get_yhigh();
-			to_coords_low = false;
-		}
-	}
-
-	if (traversal_dir == BACKWARD_TRAVERSAL){
-		//XXX: issue with backwards traversal!!! 
-		//	outgoing edges can happen anywhere along the length of a node!!!
-
-		/* need to flip stuff around for backwards traversal */
-		if (from_coords_low){
-			from_x = this->get_xhigh();
-			from_y = this->get_yhigh();
-		} else {
-			from_x = this->get_xlow();
-			from_y = this->get_ylow();
-		}
-
-		if (to_coords_low){
-			to_x = target_node.get_xhigh();
-			to_y = target_node.get_yhigh();
-		} else {
-			to_x = target_node.get_xlow();
-			to_y = target_node.get_ylow();
-		}
-	}
-
-	weight_to_node = abs(to_x - from_x) + abs(to_y - from_y);
-
-	/* if target node is a pin, it can share the same coordinate as the subsegment from which we are connecting */
-	//FIXME: re-enable this check. currently experiencing a bug where paths aren't being enumerated/analyzed
-	//if (from_type == CHANX || from_type == CHANY){
-	//	if (to_type == IPIN)
-			weight_to_node += 1;
-	//}
 
 
 	if (weight_to_node > this->get_span() + 2){
@@ -1224,28 +1167,10 @@ void Routing_Structs::init_rr_node_weights(){
 void Routing_Structs::init_rr_edge_coordinates(){
 	int num_nodes = this->get_num_rr_nodes();
 
-	/* possible cases:
-		- pin & wire
-			- pin has definite coordinate
-		- wire & wire
-			- orthogonal connection: can find out at what coordinate the two wires meet
-			- parallel connection, endpoint & endpoint; can find out at what coordinate the wires meet
-			- parallel connection, endpoint & midpoint; some ambiguity here in the bidirectional case
-			- parallel connection, midpoint & midpoint; only exists in bidirectional case; ambiguous
-	*/
-
 	/* possible node types */
 	enum {
 		PIN_WIRE = 0,
 		WIRE_WIRE = 1
-	};
-
-	/* possible connections between two wire segments */
-	enum {
-		ORTHOGONAL = 0,
-		PARALLEL_EE,
-		PARALLEL_EM,
-		PARALLEL_MM
 	};
 
 
@@ -1259,6 +1184,7 @@ void Routing_Structs::init_rr_edge_coordinates(){
 		/* go over outgoing edges */
 		for (int iedge = 0; iedge < num_out_edges; iedge++){
 			Coordinate edge_coord;
+			Coordinate reverse_coord;	//coordinate for the reverse incoming edge
 
 			RR_Node &out_node = this->rr_node[ node.out_edges[iedge] ];
 			
@@ -1289,36 +1215,68 @@ void Routing_Structs::init_rr_edge_coordinates(){
 
 			if (node_combo == PIN_WIRE){
 
-				//TODO: can set some kind of flag in here to mark whether one of the coordinates needs to be increased/decreased for the
-				//	reverse connection
 				if (node_type == CHANX || node_type == CHANY){
 					edge_coord.x = out_xlow;
 					edge_coord.y = out_ylow;
 
-					if (node_type == CHANX && node_ylow < out_ylow){
+					/* set the reverse (incoming edge) coordinate */
+					reverse_coord.x = out_xlow;
+					reverse_coord.y = out_ylow;
+
+					/* pin might be "above" the wire; snap appropriate coordinate to the wire */
+					if (node_type == CHANX){
 						edge_coord.y = node_ylow;
-					} else if (node_type == CHANY && node_xlow < out_xlow){
+					} else if (node_type == CHANY){
 						edge_coord.x = node_xlow;
 					}
 				} else {
 					edge_coord.x = node_xlow;
 					edge_coord.y = node_ylow;
 
-					if (out_type == CHANX && out_ylow < node_ylow){
+					reverse_coord.x = node_xlow;
+					reverse_coord.y = node_ylow;
+
+					if (out_type == CHANX){
 						edge_coord.y = out_ylow;
-					} else if (out_type == CHANY && out_xlow < node_xlow){
+					} else if (out_type == CHANY){
 						edge_coord.x = out_xlow;
 					}
 				}
 			} else if (node_combo == WIRE_WIRE){
-				/* this is harder... */
-				//can maybe just assume that the starting coordinate of the other wire determines the edge coordinate?
+				e_direction out_direction = out_node.get_direction();
+
+				if (out_direction == BI_DIRECTION){
+					WTHROW(EX_INIT, "Bidirectional wires are currently not supported for path-based node weights");
+				}
+
+				int out_start_x = out_xlow;
+				int out_start_y = out_ylow;
+
+				if (out_direction == DEC_DIRECTION){
+					out_start_x = out_xhigh;
+					out_start_x = out_yhigh;
+				}
+
+				//XXX: just use the destination wire start coordinate... make this more precise if necessary
+				edge_coord.x = out_start_x;
+				edge_coord.y = out_start_y;
+				reverse_coord.x = out_start_x;
+				reverse_coord.y = out_start_y;
 			}
 			
 			node.out_coordinates[iedge] = edge_coord;
+
+
+			/* now set the coordinate of the incoming edge (destination node) */
+			int num_in_edges = out_node.get_num_in_edges();
+			for (int inedge = 0; inedge < num_in_edges; inedge++){
+				int in_index = out_node.in_edges[inedge];
+				if (in_index == inode){
+					out_node.in_coordinates[inedge] = reverse_coord;
+					break;
+				}
+			}
 		}
-
-
 	}
 }
 

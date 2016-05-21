@@ -327,7 +327,7 @@ public:
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
 	float get_weight(void) const;
-	float get_weight_to_node(RR_Node const &target_node, e_traversal_dir traversal_dir) const;
+	float get_weight_to_node(int edge_index, e_traversal_dir traversal_dir) const;
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
