@@ -143,7 +143,7 @@ static void put_children_on_queue_and_update_structs(int *edge_list, int num_nod
 
 	for (int inode = 0; inode < num_nodes; inode++){
 		int node_ind = edge_list[inode];
-		
+
 		/* skip nodes which have already been inserted onto the queue */
 		if (traversal_dir == FORWARD_TRAVERSAL){
 			if (node_topo_inf[node_ind].get_done_from_source()){
@@ -156,10 +156,10 @@ static void put_children_on_queue_and_update_structs(int *edge_list, int num_nod
 		}
 
 		/* skip nodes which cannot carry a legal path from source to sink */
-		if ( !ss_distances[node_ind].is_legal(rr_node[node_ind].get_weight(), max_path_weight) ){
+		//if ( !ss_distances[node_ind].is_legal(rr_node[node_ind].get_weight(), max_path_weight) ){
+		if ( !ss_distances[node_ind].is_legal(0.0, max_path_weight) ){
 			continue;	
 		}
-
 
 		/* EXECUTE USER-DEFINED FUNCTION */
 		bool ignore_node = false;
@@ -255,12 +255,13 @@ static void put_child_onto_nodes_waiting_structure(int child_ind, t_rr_node &rr_
 	   //	2nd level: min path weight to source (by ascending order)
 	   //	3rd level: pointer of node (by ascending order)
 
+	//Note, with the new weighing scheme the path weight here is potentially an over-estimation.
 	int child_weight = rr_node[child_ind].get_weight();
 
 	int source_dist = ss_distances[child_ind].get_source_distance();
 	int sink_dist = ss_distances[child_ind].get_sink_distance();
 
-	int path_weight = ss_distances[child_ind].get_source_distance() + ss_distances[child_ind].get_sink_distance() - 1*child_weight;//2*child_weight;
+	int path_weight = ss_distances[child_ind].get_source_distance() + ss_distances[child_ind].get_sink_distance() + 1*child_weight;//2*child_weight;
 	int dist_to_start;
 
 	if (traversal_dir == FORWARD_TRAVERSAL){

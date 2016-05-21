@@ -208,8 +208,11 @@ void RR_Node_Base::free_allocated_members(){
 		delete [] this->out_edges;
 	if (!this->out_switches)
 		delete [] this->out_switches;
+	if (!this->out_coordinates)
+		delete [] this->out_coordinates;
 	this->out_edges = NULL;
 	this->out_switches = NULL;
+	this->out_coordinates = NULL;
 }
 
 /* Allocates edge array and switch array, and sets num_out_edges */
@@ -217,11 +220,19 @@ void RR_Node_Base::alloc_out_edges_and_switches(short n_edges){
 	if (n_edges > 0){
 		this->out_edges = new int[n_edges];
 		this->out_switches = new short[n_edges];
+		this->out_coordinates = new Coordinate[n_edges];
 		this->num_out_edges = n_edges;
 	} else {
 		this->out_edges = NULL;
 		this->out_switches = NULL;
 		this->num_out_edges = UNDEFINED;
+	}
+
+	for (int iedge = 0; iedge < n_edges; iedge++){
+		this->out_edges[iedge] = UNDEFINED;
+		this->out_switches[iedge] = UNDEFINED;
+		this->out_coordinates[iedge].x = UNDEFINED;
+		this->out_coordinates[iedge].y = UNDEFINED;
 	}
 }
 
@@ -422,11 +433,18 @@ void RR_Node::alloc_in_edges_and_switches(short n_edges){
 	if (n_edges > 0){
 		this->in_edges = new int[n_edges];
 		this->in_switches = new short[n_edges];
+		this->in_coordinates = new Coordinate[n_edges];
 		this->num_in_edges = n_edges;
 	} else {
 		this->in_edges = NULL;
 		this->in_switches = NULL;
 		this->num_in_edges = UNDEFINED;
+	}
+	for (int iedge = 0; iedge < n_edges; iedge++){
+		this->in_edges[iedge] = UNDEFINED;
+		this->in_switches[iedge] = UNDEFINED;
+		this->in_coordinates[iedge].x = UNDEFINED;
+		this->in_coordinates[iedge].y = UNDEFINED;
 	}
 }
 
@@ -512,8 +530,11 @@ void RR_Node::free_in_edges_and_switches(){
 		delete [] this->in_edges;
 	if (!this->in_switches)
 		delete [] this->in_switches;
+	if (!this->in_coordinates)
+		delete [] this->in_coordinates;
 	this->in_edges = NULL;
 	this->in_switches = NULL;
+	this->in_coordinates = NULL;
 
 	this->num_in_edges = UNDEFINED;
 }
@@ -565,23 +586,24 @@ void RR_Node::increment_demand(double value){
 /* sets weight of this node */
 void RR_Node::set_weight(){
 	/* weight of node is its wirelength usage */
-	//short x_low, y_low, x_high, y_high;
-	//x_low = this->get_xlow();
-	//y_low = this->get_ylow();
-	//x_high = this->get_xhigh();
-	//y_high = this->get_yhigh();
+	short x_low, y_low, x_high, y_high;
+	x_low = this->get_xlow();
+	y_low = this->get_ylow();
+	x_high = this->get_xhigh();
+	y_high = this->get_yhigh();
 
 	//float my_weight = (float)(x_high - x_low) + (y_high - y_low);
-	//if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-	//	my_weight += 1.0;
-	//}
-
-
-	float my_weight = 0.0;
+	float my_weight = 0;
 	if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-		my_weight = 1.0 + min(this->demand, 1.0)*((float)this->get_span());// + 1.0);
-		my_weight = ceil(my_weight);
+		my_weight = this->get_span();
 	}
+
+
+	//float my_weight = 0.0;
+	//if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
+	//	my_weight = 1.0 + min(this->demand, 1.0)*((float)this->get_span());// + 1.0);
+	//	my_weight = ceil(my_weight);
+	//}
 	
 	this->weight = my_weight;
 }
@@ -626,12 +648,99 @@ short RR_Node::get_num_in_edges() const{
 }
 
 /* returns weight of this node */
-float RR_Node::get_weight() const{
+float RR_Node::get_weight(void) const{
 	//pthread_mutex_lock(&this->my_mutex);
 	float _weight = this->weight;
 	//pthread_mutex_unlock(&this->my_mutex);
 	return _weight;
 }
+
+/* returns the weight to traverse from the start point of the current node to the start point of the target node */
+float RR_Node::get_weight_to_node(RR_Node const &target_node, e_traversal_dir traversal_dir) const{
+	int weight_to_node = 0;
+
+	//TODO: what if we are doing a backwards traversal??
+
+	int from_x, from_y, to_x, to_y;
+	e_rr_type from_type = this->get_rr_type();
+	e_rr_type to_type = target_node.get_rr_type();
+
+	bool from_coords_low = true;
+	bool to_coords_low = true;
+	
+	from_x = this->get_xlow();
+	from_y = this->get_ylow();
+
+	to_x = target_node.get_xlow();
+	to_y = target_node.get_ylow();
+
+	/* adjust start coordinates of the from node */
+	if (from_type == CHANX || from_type == CHANY){
+		e_direction my_direction = this->get_direction();
+		if (my_direction == BI_DIRECTION){
+			WTHROW(EX_PATH_ENUM, "Node weight for bidirectional wires is currently not supported");
+		}
+		if (my_direction == DEC_DIRECTION){
+			from_x = this->get_xhigh();
+			from_y = this->get_yhigh();
+			from_coords_low = false;
+		}
+	}
+
+	/* adjust start coordinates of the target node */
+	if (to_type == CHANX || to_type == CHANY){
+		e_direction target_direction = target_node.get_direction();
+		if (target_direction == BI_DIRECTION){
+			WTHROW(EX_PATH_ENUM, "Node weight for bidirectional wires is currently not supported");
+		}
+		if (target_direction == DEC_DIRECTION){
+			to_x = target_node.get_xhigh();
+			to_y = target_node.get_yhigh();
+			to_coords_low = false;
+		}
+	}
+
+	if (traversal_dir == BACKWARD_TRAVERSAL){
+		//XXX: issue with backwards traversal!!! 
+		//	outgoing edges can happen anywhere along the length of a node!!!
+
+		/* need to flip stuff around for backwards traversal */
+		if (from_coords_low){
+			from_x = this->get_xhigh();
+			from_y = this->get_yhigh();
+		} else {
+			from_x = this->get_xlow();
+			from_y = this->get_ylow();
+		}
+
+		if (to_coords_low){
+			to_x = target_node.get_xhigh();
+			to_y = target_node.get_yhigh();
+		} else {
+			to_x = target_node.get_xlow();
+			to_y = target_node.get_ylow();
+		}
+	}
+
+	weight_to_node = abs(to_x - from_x) + abs(to_y - from_y);
+
+	/* if target node is a pin, it can share the same coordinate as the subsegment from which we are connecting */
+	//FIXME: re-enable this check. currently experiencing a bug where paths aren't being enumerated/analyzed
+	//if (from_type == CHANX || from_type == CHANY){
+	//	if (to_type == IPIN)
+			weight_to_node += 1;
+	//}
+
+
+	if (weight_to_node > this->get_span() + 2){
+		WTHROW(EX_PATH_ENUM, "something wrong. Span: " << this->get_span() << "  weight: " << weight_to_node
+			<< "  traversal dir: " << traversal_dir << "  from type: " << from_type << "  to type: " << to_type
+			<< "  from x: " << from_x << "  from y: " << from_y << "  to x: " << to_x << "  to y: " << to_y);
+	}
+
+	return weight_to_node;
+}
+
 
 /* returns index of virtual source node corresponding to this node */
 int RR_Node::get_virtual_source_node_ind() const{
@@ -1111,6 +1220,108 @@ void Routing_Structs::init_rr_node_weights(){
 	}
 }
 
+/* initialize node edge coordinates */
+void Routing_Structs::init_rr_edge_coordinates(){
+	int num_nodes = this->get_num_rr_nodes();
+
+	/* possible cases:
+		- pin & wire
+			- pin has definite coordinate
+		- wire & wire
+			- orthogonal connection: can find out at what coordinate the two wires meet
+			- parallel connection, endpoint & endpoint; can find out at what coordinate the wires meet
+			- parallel connection, endpoint & midpoint; some ambiguity here in the bidirectional case
+			- parallel connection, midpoint & midpoint; only exists in bidirectional case; ambiguous
+	*/
+
+	/* possible node types */
+	enum {
+		PIN_WIRE = 0,
+		WIRE_WIRE = 1
+	};
+
+	/* possible connections between two wire segments */
+	enum {
+		ORTHOGONAL = 0,
+		PARALLEL_EE,
+		PARALLEL_EM,
+		PARALLEL_MM
+	};
+
+
+	for (int inode = 0; inode < num_nodes; inode++){
+		RR_Node &node = this->rr_node[inode];
+		
+		e_rr_type node_type = node.get_rr_type();
+		int num_out_edges = node.get_num_out_edges();
+		int num_in_edges = node.get_num_in_edges();
+
+		/* go over outgoing edges */
+		for (int iedge = 0; iedge < num_out_edges; iedge++){
+			Coordinate edge_coord;
+
+			RR_Node &out_node = this->rr_node[ node.out_edges[iedge] ];
+			
+			e_rr_type out_type = out_node.get_rr_type();
+
+			if ( (node_type == IPIN || node_type == OPIN) && (out_type == IPIN || out_type == OPIN) ){
+				WTHROW(EX_INIT, "An edge connects two pins together. Did not expect this.");
+			}
+
+			int node_combo = WIRE_WIRE;
+			if (node_type == IPIN || node_type == OPIN || out_type == IPIN || out_type == OPIN){
+				node_combo = PIN_WIRE;
+			}
+
+			
+			int node_xlow, node_xhigh, node_ylow, node_yhigh;
+			int out_xlow, out_xhigh, out_ylow, out_yhigh;
+			
+			node_xlow = node.get_xlow();
+			node_xhigh = node.get_xhigh();
+			node_ylow = node.get_ylow();
+			node_yhigh = node.get_yhigh();
+
+			out_xlow = out_node.get_xlow();
+			out_xhigh = out_node.get_xhigh();
+			out_ylow = out_node.get_ylow();
+			out_yhigh = out_node.get_yhigh();
+
+			if (node_combo == PIN_WIRE){
+
+				//TODO: can set some kind of flag in here to mark whether one of the coordinates needs to be increased/decreased for the
+				//	reverse connection
+				if (node_type == CHANX || node_type == CHANY){
+					edge_coord.x = out_xlow;
+					edge_coord.y = out_ylow;
+
+					if (node_type == CHANX && node_ylow < out_ylow){
+						edge_coord.y = node_ylow;
+					} else if (node_type == CHANY && node_xlow < out_xlow){
+						edge_coord.x = node_xlow;
+					}
+				} else {
+					edge_coord.x = node_xlow;
+					edge_coord.y = node_ylow;
+
+					if (out_type == CHANX && out_ylow < node_ylow){
+						edge_coord.y = out_ylow;
+					} else if (out_type == CHANY && out_xlow < node_xlow){
+						edge_coord.x = out_xlow;
+					}
+				}
+			} else if (node_combo == WIRE_WIRE){
+				/* this is harder... */
+				//can maybe just assume that the starting coordinate of the other wire determines the edge coordinate?
+			}
+			
+			node.out_coordinates[iedge] = edge_coord;
+		}
+
+
+	}
+}
+
 /* returns number of rr nodes */
 int Routing_Structs::get_num_rr_nodes() const{
 	return (int)this->rr_node.size();
@@ -1229,7 +1440,7 @@ bool SS_Distances::is_legal(int my_node_weight, int max_path_weight) const{
 	if (source_dist == UNDEFINED || sink_dist == UNDEFINED){
 		result = false;
 	} else {
-		if (source_dist + sink_dist - my_node_weight <= max_path_weight){
+		if (source_dist + sink_dist /*+ my_node_weight*/ <= max_path_weight){
 			result = true;
 		} else {
 			result = false;
@@ -1416,20 +1627,11 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 
 	float paths_through_node = 0;
 
-	float incremental_sink_paths = 0;
-	int next_j = my_node_weight + 1;
-
-	if (next_j >= this->num_sink_buckets){
-		WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
-	}
-
-	for (int j = 0; j < next_j; j++){
-		if (this->sink_buckets[j] != UNDEFINED){
-			incremental_sink_paths += this->sink_buckets[j];
-		}
-	}
-
+	int next_j = 0;
+	float sink_term = 0;
 	for (int i = max_path_weight; i >= my_dist_to_source; i--){
+		float source_term = 0;
+
 		if (next_j >= this->num_sink_buckets){
 			WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
 		}
@@ -1438,11 +1640,13 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 		}
 
 		if (this->source_buckets[i] != UNDEFINED){
-			paths_through_node += this->source_buckets[i] * incremental_sink_paths;
+			source_term = this->source_buckets[i];
 		}
 		if (this->sink_buckets[next_j] != UNDEFINED){
-			incremental_sink_paths += this->sink_buckets[next_j];
+			sink_term += this->sink_buckets[next_j];
 		}
+
+		paths_through_node += source_term * sink_term;
 		next_j++;
 	}
 
@@ -1501,7 +1705,7 @@ void Node_Topological_Info::clear(){
 	this->node_waiting_info.clear();
 	this->buckets.clear();
 
-	for (int ibucket = 0; ibucket < this->demand_discounts.size(); ibucket++){
+	for (int ibucket = 0; ibucket < (int)this->demand_discounts.size(); ibucket++){
 		this->demand_discounts[ibucket] = 0.0;
 	}
 }
@@ -1638,10 +1842,10 @@ short Node_Topological_Info::get_num_legal_nodes(int *edge_list, int num_edges, 
 	/* check how many nodes belonging to this edge list are legal */
 	for (int iedge = 0; iedge < num_edges; iedge++){
 		int node_ind = edge_list[iedge];
-		int node_weight = rr_node[node_ind].get_weight();
+		//int node_weight = rr_node[node_ind].get_weight();
 
 		//TODO: should check whether node can have legal path through *me* as opposed to a legal path through itself
-		if ( ss_distances[node_ind].is_legal(node_weight, max_path_weight) ){
+		if ( ss_distances[node_ind].is_legal(0.0, max_path_weight) ){
 			num_legal_nodes++;
 		}
 	}
@@ -1649,3 +1853,4 @@ short Node_Topological_Info::get_num_legal_nodes(int *edge_list, int num_edges, 
 	return num_legal_nodes;	
 }
 /*==== END Node_Topological_Info Class ====*/
+

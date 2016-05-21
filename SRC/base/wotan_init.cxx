@@ -83,6 +83,9 @@ void wotan_init(int argc, char **argv, User_Options *user_opts, Arch_Structs *ar
 	/* initialize rr node weights */
 	routing_structs->init_rr_node_weights();
 
+	/* initialize edge coordinates */
+	routing_structs->init_rr_edge_coordinates();
+
 	/* check initialized state */
 	check_setup(user_opts, arch_structs, routing_structs);
 

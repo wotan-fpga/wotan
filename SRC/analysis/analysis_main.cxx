@@ -258,7 +258,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 
 /* enqueues nodes belonging to specified edge list onto the bonded priority queue. the weight of the 
    enqueued nodes will be base_weight + their own weight */
-void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int base_weight, t_ss_distances &ss_distances,
+void put_children_on_pq_and_set_ss_distance(int parent_ind, int num_edges, int *edge_list, int base_weight, t_ss_distances &ss_distances,
 			int max_path_weight, e_traversal_dir traversal_dir, t_rr_node &rr_node, int to_node_ind, My_Bounded_Priority_Queue<int> *PQ);
 
 /* returns whether or not the specified node has a chance to reach the specified destination node */
@@ -418,7 +418,8 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	cout << "Node paths: " << endl;
 	for (int inode = 0; inode < num_rr_nodes; inode++){
 		e_rr_type rr_type = rr_node[inode].get_rr_type();
-		int node_weight = rr_node[inode].get_weight();
+		//int node_weight = rr_node[inode].get_weight();
+		int node_weight = 0;
 		int node_dist_to_source = ss_distances[inode].get_source_distance();
 
 		int num_node_paths = node_topo_inf[inode].buckets.get_num_paths(node_weight, node_dist_to_source, large_max_path_weight);
@@ -1228,7 +1229,8 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 					enumerate_traversal_done_func);
 
 		/* compute the number of paths to be enumerated from source (which accounts for the scaling factor) */
-		int source_node_weight = rr_node[source_node_ind].get_weight();
+		//int source_node_weight = rr_node[source_node_ind].get_weight();
+		int source_node_weight = 0;
 		node_topo_inf[source_node_ind].buckets.source_buckets[0] = 1;
 		float num_enumerated = node_topo_inf[source_node_ind].buckets.get_num_paths(source_node_weight, 0, max_path_weight);
 
@@ -1503,7 +1505,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 		}
 
 		/* now iterate over children of this node and selectively push them onto the queue */
-		put_children_on_pq_and_set_ss_distance(num_children, edge_list, node_path_weight, ss_distances, max_path_weight, 
+		put_children_on_pq_and_set_ss_distance(node_ind, num_children, edge_list, node_path_weight, ss_distances, max_path_weight, 
 						traversal_dir, rr_node, to_node_ind, &PQ);
 
 		nodes_visited.push_back( node_ind );
@@ -1513,7 +1515,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 /* enqueues nodes belonging to specified edge list onto the bounded priority queue. the weight of the 
    enqueued nodes will be base_weight + their own weight.
    also... TODO */
-void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int base_weight, t_ss_distances &ss_distances,
+void put_children_on_pq_and_set_ss_distance(int parent_ind, int num_edges, int *edge_list, int base_weight, t_ss_distances &ss_distances,
 		int max_path_weight, e_traversal_dir traversal_dir, t_rr_node &rr_node, int to_node_ind, My_Bounded_Priority_Queue<int> *PQ){
 
 	int dest_xlow, dest_xhigh, dest_ylow, dest_yhigh;
@@ -1546,8 +1548,9 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 			}
 		}
 		
-		int node_weight = rr_node[node_ind].get_weight();
-		int path_weight = base_weight + node_weight;
+		//int node_weight = rr_node[node_ind].get_weight();
+		int path_weight = base_weight;
+		path_weight += rr_node[parent_ind].get_weight_to_node(rr_node[node_ind], traversal_dir);
 
 		/* mark node as visited */
 		if (traversal_dir == FORWARD_TRAVERSAL){
@@ -1577,6 +1580,7 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 
 			//TODO: seeing a slight difference in total probability (but not total demand) with this method
 			/* on backward traversal, skip nodes that definitely can't reach the destination (the 'to' node ) */
+			int node_weight = 0;
 			if (!ss_distances[node_ind].is_legal( node_weight, max_path_weight) ){
 				ss_distances[node_ind].set_sink_distance( UNDEFINED );
 				ss_distances[node_ind].set_visited_from_sink(false);
@@ -1689,7 +1693,8 @@ void set_node_hops(int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_
 		/* expand over edges */
 		for (int iedge = 0; iedge < num_children; iedge++){
 			int child_ind = edge_list[iedge];
-			int child_weight = rr_node[child_ind].get_weight();
+			//int child_weight = rr_node[child_ind].get_weight();
+			int child_weight = 0;
 
 			/* check that child is legal */
 			if (!ss_distances[child_ind].is_legal(child_weight, max_path_weight)){

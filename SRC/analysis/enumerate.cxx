@@ -31,6 +31,7 @@ static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child
 void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, 
                           e_traversal_dir traversal_dir, int max_path_weight, User_Options *user_opts, void *user_data){
 
+
 	/* increment node demand during forward traversal only */
 	if (traversal_dir == FORWARD_TRAVERSAL){
 		/* Increment demand of nodes based on paths enumerated through them */
@@ -39,8 +40,11 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 		//Note: I added OPIN and IPIN checks below because otherwise high opin demand skews comparisons (I think) unfairly
 		//	away from opin-equivalent architectures. (see commit 8392b21)
 		if (node_type != SOURCE && node_type != SINK && node_type != OPIN /*&& node_type != IPIN*/){
-			int node_weight = rr_node[popped_node].get_weight();
+			//int node_weight = rr_node[popped_node].get_weight();
+			int node_weight = 0;
 			int dist_to_source = ss_distances[popped_node].get_source_distance();
+
+			//XXX: getting 0's here
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
 
 			/* apply the demand multiplier to this node if it is not of type OPIN/IPIN/SOURCE/SINK */

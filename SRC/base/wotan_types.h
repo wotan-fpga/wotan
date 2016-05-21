@@ -216,6 +216,7 @@ public:
 
 	int *out_edges;					/* a list of rr nodes *to* which this node connects [0..get_num_out_edges()-1] */
 	short *out_switches;				/* a list of switches which are used by the edges emanating from this node */
+	Coordinate *out_coordinates;				/* coordinates of each outbound edge */
 	
 	/* allocator functions */
 	void alloc_out_edges_and_switches(short);
@@ -256,8 +257,6 @@ private:
 	short num_in_edges;				/* number of edges linking into this node */
 	float weight;					/* weight of this node */
 	double demand;					/* fractional demand for this node. used for routability analysis */
-
-	
 
 	/* each node keeps track of the number of paths from/to all nearby sources/sinks that are within the 
 	   (manhattan distance w.r.t. logic blocks) radius 'path_count_history_radius'. The center of the 
@@ -301,6 +300,8 @@ public:
 	int *in_edges;					/* a list of rr nodes *from* which this node receives connections [0..get_num_in_edges()-1] */
 	short *in_switches;				/* a list of switches which are used by the edges linking into this node */
 
+	Coordinate *in_coordinates;				/* coordinates of each inbound edge */
+
 	//XXX COMMENT
 	//TODO: make this float if possible
 	double **child_demand_contributions;
@@ -325,7 +326,8 @@ public:
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
-	float get_weight() const;
+	float get_weight(void) const;
+	float get_weight_to_node(RR_Node const &target_node, e_traversal_dir traversal_dir) const;
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
@@ -501,6 +503,8 @@ public:
 	void alloc_and_create_rr_node_index(int num_rr_types, int x_size, int y_size);
 
 	void init_rr_node_weights();
+
+	void init_rr_edge_coordinates();
 
 	/* get methods */
 	int get_num_rr_nodes() const;

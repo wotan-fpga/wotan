@@ -22,7 +22,7 @@ using namespace std;
 
 
 /**** Function Declarations ****/
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node);
+static void account_for_current_node_probability(int node_ind, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node);
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight);
@@ -40,14 +40,13 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 
 	/* the path probabilities have been propagated from upstream nodes to this node, but
 	   the probability of *this* node has not yet been factored in. this is done now */
-	int node_weight = rr_node[popped_node].get_weight();
 	//float node_demand = rr_node[popped_node].get_demand();
 	float node_demand = get_node_demand_adjusted_for_path_history(popped_node, rr_node, from_node_ind, to_node_ind, propagate_structs->fill_type, user_opts);
 	float adjusted_demand = min(1.0F, node_demand);
 	//cout << "   node " << popped_node << "  rr_type: " << rr_node[popped_node].get_rr_type_string() << "  weight: " << node_weight << "  demand: " << node_demand << endl;
 	//cout << "       before: " << rr_node[popped_node].get_demand(user_opts) << endl;
 
-	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node);
+	account_for_current_node_probability(popped_node, adjusted_demand, node_topo_inf, rr_node);
 
 	pthread_mutex_lock(&g_mutex);
 	g_prob_nodes_popped++;
@@ -78,7 +77,7 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 
 /* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
    probability that the node is uncongested */
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node){
+static void account_for_current_node_probability(int node_ind, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node){
 	double *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
@@ -132,9 +131,11 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 	double *parent_buckets;
 	double *child_buckets;
 	int num_buckets;
-	int child_weight = rr_node[child_ind].get_weight();
+	//int child_weight = rr_node[child_ind].get_weight();
 	int child_path_weight_to_dest;		//the weight of the minimum-weight path from child to the destination node
 	int parent_path_weight_to_start;	//the weight of the minimum-weight path from parent to the starting node
+
+	int parent_weight_to_child = rr_node[parent_ind].get_weight_to_node(rr_node[child_ind], traversal_dir);
 
 	/* get bucket structures according to direction of traversal */
 	if (traversal_dir == FORWARD_TRAVERSAL){
@@ -157,17 +158,16 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 		parent_path_weight_to_start = ss_distances[parent_ind].get_sink_distance();
 	}
 
-	/* now propagate path probabilities. the assumption is that every single path is independent (perhaps not a very good assumption)
-	   TODO. add better description */
+	/* now propagate path probabilities from parent to child */
 	for (int ibucket = parent_path_weight_to_start; ibucket < num_buckets; ibucket++){	//parent cannot carry paths of weight smaller than itself
 		/* we're done if this set of paths cannot possibly reach the target node 
 		   in under the minimum allowable path weight */
-		if (ibucket + child_path_weight_to_dest > max_path_weight){
+		if (ibucket + parent_path_weight_to_start + child_path_weight_to_dest > max_path_weight){
 			break;
 		}
 
 		/* bucket into which to propagate probabilities */
-		int target_bucket = ibucket + child_weight;
+		int target_bucket = ibucket + parent_weight_to_child;
 
 		/* propagate the probability of paths *not* being available */
 		if (child_buckets[target_bucket] == UNDEFINED){
