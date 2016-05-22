@@ -669,6 +669,8 @@ float RR_Node::get_weight_to_node(int edge_index, e_traversal_dir traversal_dir)
 		//XXX problem is, we don't know what edge we arrived to the starting node by. may even be a couple of edges at different coordinates...
 		//so, i mean, what if it's a very long wire? there can be a very big weight difference depending through which incoming edge we came in...
 		//a;sdlkfja;sdlkfjas;ldfkja;sldfkjasf
+
+		//in the future the easiest thing to do might be to split up long wires into L separate nodes
 	} else {
 		WTHROW(EX_PATH_ENUM, "Unexpected traversal direction: " << traversal_dir);
 	}
