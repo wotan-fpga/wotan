@@ -49,9 +49,9 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 
 	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node);
 
-	pthread_mutex_lock(&g_mutex);
-	g_prob_nodes_popped++;
-	pthread_mutex_unlock(&g_mutex);
+	//pthread_mutex_lock(&g_mutex);
+	//g_prob_nodes_popped++;
+	//pthread_mutex_unlock(&g_mutex);
 }
 
 /* Called when topological traversal is iterateing over a node's children */

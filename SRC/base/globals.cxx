@@ -10,3 +10,5 @@ pthread_mutex_t g_mutex;
 float g_conns_enumerated = 0;
 float g_enum_nodes_popped = 0;
 float g_prob_nodes_popped = 0;
+
+float g_total_adjusted_enum_path_weight = 0;

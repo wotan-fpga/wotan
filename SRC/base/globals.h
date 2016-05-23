@@ -9,4 +9,6 @@ extern float g_conns_enumerated;
 extern float g_enum_nodes_popped;
 extern float g_prob_nodes_popped;
 
+extern float g_total_adjusted_enum_path_weight;
+
 #endif

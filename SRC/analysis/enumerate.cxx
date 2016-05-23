@@ -61,9 +61,9 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 				}
 			}
 
-			pthread_mutex_lock(&g_mutex);
-			g_enum_nodes_popped++;
-			pthread_mutex_unlock(&g_mutex);
+			//pthread_mutex_lock(&g_mutex);
+			//g_enum_nodes_popped++;
+			//pthread_mutex_unlock(&g_mutex);
 		}
 
 		/* add to existing count of the number of routing nodes (CHANX/CHANY/IPIN/OPIN) in the legal subgraph
