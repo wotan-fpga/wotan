@@ -244,7 +244,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 /* fills the t_ss_distances structures according to source & sink distances to intermediate nodes. 
    also returns an adjusted maximum path weight (to be further passed on to path enumeration / probability analysis functions)
    based on the distance from the source to the sink */
-void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
+bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist);
 
 /* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
@@ -1075,6 +1075,9 @@ void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int n
 void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, t_rr_node &rr_node, int num_nodes){
 	thread_node_topo_inf.assign(num_threads, t_node_topo_inf(num_nodes, Node_Topological_Info()));
 
+	//giving a bit of extra leeway
+	max_path_weight_bound *= 1.3;
+
 	for (int inode = 0; inode < num_nodes; inode++){
 		for (int ithread = 0; ithread < num_threads; ithread++){
 			thread_node_topo_inf[ithread][inode].buckets.alloc_source_sink_buckets(max_path_weight_bound+1, max_path_weight_bound+1);
@@ -1210,7 +1213,7 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 
 	t_rr_node &rr_node = routing_structs->rr_node;
 	/* get maximum allowable path weight of this connection */
-	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);	//XXX this!!!
+	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);
 	int min_dist = UNDEFINED;
 
 	/* set node distances for potentially relevant portion of graph */
@@ -1218,8 +1221,11 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 	//set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
 	//set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
 
-	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
-					nodes_visited, &max_path_weight, &min_dist);
+	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
+					nodes_visited, &max_path_weight, &min_dist)){
+		//could not reach source or sink
+		return;
+	}
 
 	
 	pthread_mutex_lock(&g_mutex);
@@ -1288,8 +1294,11 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);
 	int min_dist = UNDEFINED;
 
-	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
-					nodes_visited, &max_path_weight, &min_dist);
+	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
+					nodes_visited, &max_path_weight, &min_dist)){
+		//could not reach source or sink
+		return 0.0;
+	}
 
 	/* Get a pointer to the fill type block descriptor -- the one that describes a regular logic block.
 	   If a fill type descriptor has never been set (such as when the graph read-in by Wotan is 'simple' and
@@ -1436,7 +1445,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 /* fills the t_ss_distances structures according to source & sink distances to intermediate nodes. 
    also returns an adjusted maximum path weight (to be further passed on to path enumeration / probability analysis functions)
    based on the distance from the source to the sink */
-void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
+bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist){
 	
 	/* 
@@ -1450,12 +1459,17 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 			- i've moved the BACKWARD_TRAVERSAL set_node_distances call *after* adjusting max path weight. will see how this affects things
 	*/
 
+	bool reached_source_sink = true;
 
 	/* set node distances for potentially relevant portion of graph */
 	set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
 
 	/* adjust maximum allowable path weight based on minimum distance. FIXME. this may not work well for multiple wirelengths */
 	int min_dist_sink = ss_distances[sink_node_ind].get_source_distance();
+
+	if (min_dist_sink < 0){
+		return false;
+	}
 
 	max_path_weight = adjust_max_path_weight_based_on_ss_dist(min_dist_sink, max_path_weight);
 
@@ -1467,8 +1481,14 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 		//WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
 	}
 
+	if (min_dist_source < 0){
+		return false;
+	}
+
 	(*adjusted_max_path_weight) = max_path_weight;
 	(*source_sink_dist) = min_dist_sink;
+
+	return true;
 }
 
 /* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
