@@ -36,6 +36,8 @@ User_Options::User_Options(){
 
 	this->use_routing_node_demand = UNDEFINED;
 
+	this->target_reliability = UNDEFINED;
+
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */
 	this->ipin_probability = 0.0;	//was 0.3
@@ -555,15 +557,15 @@ void RR_Node::clear_demand(){
 }
 
 /* increment node demand by specified value */
-void RR_Node::increment_demand(double value){
+void RR_Node::increment_demand(double value, float demand_multiplier){
 	pthread_mutex_lock(&this->my_mutex);
 	this->demand += value;
-	this->set_weight();
+	this->set_weight(demand_multiplier);
 	pthread_mutex_unlock(&this->my_mutex);
 }
 
 /* sets weight of this node */
-void RR_Node::set_weight(){
+void RR_Node::set_weight(float demand_multiplier){
 	/* weight of node is its wirelength usage */
 	//short x_low, y_low, x_high, y_high;
 	//x_low = this->get_xlow();
@@ -579,7 +581,7 @@ void RR_Node::set_weight(){
 
 	float my_weight = 0.0;
 	if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-		my_weight = 1.0 + min(this->demand, 1.0)*((float)this->get_span());// + 1.0);
+		my_weight = 1.0 + min(this->demand*demand_multiplier, 1.0)*((float)this->get_span());// + 1.0);
 		my_weight = ceil(my_weight);
 	}
 	
@@ -606,7 +608,7 @@ double RR_Node::get_demand(User_Options *user_opts) const{
 		//	return 0.0;
 
 		/* return demand recorded at this node */
-		return_value = this->demand;
+		return_value = this->demand * user_opts->demand_multiplier;
 	} else {
 		/* user has specified that a specific demand be used for routing nodes (those of CHANX/CHANY type) */
 		e_rr_type rr_type = this->get_rr_type();
@@ -1107,7 +1109,7 @@ void Routing_Structs::init_rr_node_weights(){
 	int num_nodes = this->get_num_rr_nodes();
 	
 	for (int inode = 0; inode < num_nodes; inode++){
-		this->rr_node[inode].set_weight();
+		this->rr_node[inode].set_weight(1.0);
 	}
 }
 

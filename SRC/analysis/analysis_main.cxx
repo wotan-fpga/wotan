@@ -196,7 +196,7 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 			Routing_Structs *routing_structs);
 
 /* enumerates paths from test tiles */
-void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
+float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs, e_topological_mode topological_mode);
 
 /* fills an initially-empty vector with the sink indices to which the source at the specified tile coordinate should connect */
@@ -330,31 +330,43 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	srand(3);
 
-	vector<int> driver_conns_at_length;
-	vector<int> receiver_conns_at_length;
 
-	/* create the lowest probability priority queues (for pessimistic routability analysis of some percentile of worst connections at each length) */
-	f_analysis_results.lowest_probs_pqs_drivers.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
-	f_analysis_results.lowest_probs_pqs_fanout.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
-	get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, DRIVER, driver_conns_at_length);	//for paths enumerated *from* sources
-	get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, RECEIVER, receiver_conns_at_length);	//for paths enumerated *from* sinks (for fanout stuff)
-	for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
-		/* set the bounded priority queue entries limit w.r.t. to the "..._conns_at_length" stats */
-		if (driver_conns_at_length[ilen] > 0){
-			//int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * FRACTION_CONNS;		//XXX
-			int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * user_opts->length_probabilities[ilen] * FRACTION_CONNS;
-			cout << "len" << ilen << " entries " << driver_entries_limit << endl;
-			f_analysis_results.lowest_probs_pqs_drivers[ilen].set_properties( driver_entries_limit );
-		}
-		if (receiver_conns_at_length[ilen] > 0){
-			int receiver_entries_limit = receiver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_FANOUT;
-			f_analysis_results.lowest_probs_pqs_fanout[ilen].set_properties( receiver_entries_limit );
-		}
-	}
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
 
-	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
+	if (user_opts->target_reliability == UNDEFINED){
+		analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
+	} else {
+		int max_tries = 20;
+		float target_tolerance = 0.01;
+		float multiplier_high = 3.0;
+		float multiplier_low = 0.0;
+		float reliability = -1;
+
+		int try_num = 1;
+		while ( abs(reliability - user_opts->target_reliability) > target_tolerance ){
+			if (try_num > max_tries){
+				cout << "WARNING! Search has taken more than " << max_tries << " tries! Using last multiplier value." << endl;
+				break;
+			}
+
+			user_opts->demand_multiplier = (multiplier_high + multiplier_low) / 2;
+
+			reliability = analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
+
+			/* perform search and get result... */
+
+			if (reliability < user_opts->target_reliability){
+				multiplier_high = user_opts->demand_multiplier;
+			} else {
+				multiplier_low = user_opts->demand_multiplier;
+			}
+		}
+
+		cout << endl;
+		cout << "Required demand multiplier: " << user_opts->demand_multiplier << endl;
+		cout << "Absolute routability metric: " << 1.0/user_opts->demand_multiplier << endl;
+	}
 
 
 	//cout << "enum nodes popped: " << g_enum_nodes_popped << endl;
@@ -367,6 +379,10 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 /* performs routability analysis on a simple one-source/one-sink graph */
 static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs){
+
+	if (user_opts->target_reliability != UNDEFINED){
+		WTHROW(EX_OTHER, "Not implemented!");
+	}
 
 	t_rr_node &rr_node = routing_structs->rr_node;
 	int num_rr_nodes = routing_structs->get_num_rr_nodes();
@@ -463,8 +479,10 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	  (read through VPR) there are no sources attached to ipins, and even if said sources could be attached,
 	  they would not fit into the pin-track-class scheme used by the rr node indices structure. So routing
 	  from ipins is actually a bit of a hack. */
-void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
+float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs, e_topological_mode topological_mode){
+
+	float result = UNDEFINED;
 
 	int fill_type_ind = arch_structs->get_fill_type_index();
 	Physical_Type_Descriptor *fill_type = &arch_structs->block_type[fill_type_ind];
@@ -595,6 +613,34 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		}
 	}
 
+
+	if (topological_mode == PROBABILITY){
+		f_analysis_results = Analysis_Results();
+
+		vector<int> driver_conns_at_length;
+		vector<int> receiver_conns_at_length;
+
+		/* create the lowest probability priority queues (for pessimistic routability analysis of some percentile of worst connections at each length) */
+		f_analysis_results.lowest_probs_pqs_drivers.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
+		f_analysis_results.lowest_probs_pqs_fanout.assign( user_opts->max_connection_length+1, t_lowest_probs_pq() );
+		get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, DRIVER, driver_conns_at_length);	//for paths enumerated *from* sources
+		get_conn_length_stats(user_opts, analysis_settings, routing_structs, arch_structs, RECEIVER, receiver_conns_at_length);	//for paths enumerated *from* sinks (for fanout stuff)
+		for(int ilen = 0; ilen < user_opts->max_connection_length+1; ilen++){
+			/* set the bounded priority queue entries limit w.r.t. to the "..._conns_at_length" stats */
+			if (driver_conns_at_length[ilen] > 0){
+				//int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * FRACTION_CONNS;		//XXX
+				int driver_entries_limit = driver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_DRIVERS * user_opts->length_probabilities[ilen] * FRACTION_CONNS;
+				cout << "len" << ilen << " entries " << driver_entries_limit << endl;
+				f_analysis_results.lowest_probs_pqs_drivers[ilen].set_properties( driver_entries_limit );
+			}
+			if (receiver_conns_at_length[ilen] > 0){
+				int receiver_entries_limit = receiver_conns_at_length[ilen] * WORST_ROUTABILITY_PERCENTILE_FANOUT;
+				f_analysis_results.lowest_probs_pqs_fanout[ilen].set_properties( receiver_entries_limit );
+			}
+		}
+	}
+
+
 	f_analysis_results.active_threads = num_threads;
 	/* initialize mutex that will be used for synchronizing threads' updates to shared variables */
 	pthread_mutex_init(&f_analysis_results.thread_mutex, NULL);
@@ -650,6 +696,8 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		cout << "  num routing nodes: " << num_routing_nodes << endl;
 		cout << "Normalized CHANX/CHANY squared demand: " << squared_demand / (double)num_routing_nodes << endl;
 		cout << endl;
+
+		result = normalized_demand;
 	} else {
 		float opin_prob = user_opts->opin_probability;
 		float ipin_prob = user_opts->ipin_probability;
@@ -688,9 +736,13 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 		float routability_metric = (driver_prob_weight * driver_prob_metric) + (fanout_prob_weight * fanout_prob_metric);
 
 		cout << "Routability metric: " << routability_metric << endl;
+
+		result = routability_metric;
 	}
 
 	malloc_trim(0);
+
+	return result;
 }
 
 
@@ -1458,8 +1510,6 @@ bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 		is there a solution here to improve consistency?
 			- i've moved the BACKWARD_TRAVERSAL set_node_distances call *after* adjusting max path weight. will see how this affects things
 	*/
-
-	bool reached_source_sink = true;
 
 	/* set node distances for potentially relevant portion of graph */
 	set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);

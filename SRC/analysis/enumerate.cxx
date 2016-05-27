@@ -44,10 +44,11 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
 
 			/* apply the demand multiplier to this node if it is not of type OPIN/IPIN/SOURCE/SINK */
-			if (node_type != OPIN /*&& node_type != IPIN*/){
-				demand_contribution *= user_opts->demand_multiplier;
-			}
-			rr_node[popped_node].increment_demand( demand_contribution );
+			//XXX: commenting this because I want to apply it when we actually use the demand, not when we set it
+			//if (node_type != OPIN /*&& node_type != IPIN*/){
+			//	demand_contribution *= user_opts->demand_multiplier;
+			//}
+			rr_node[popped_node].increment_demand( demand_contribution, user_opts->demand_multiplier);
 
 			/* It is possible to keep a history of how many paths there are connecting each source/sink with the
 			   nearby nodes. This path count history can be used to later subtract the demand due to a source/sink pair

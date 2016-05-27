@@ -248,6 +248,24 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			}
 
 			user_opts->demand_multiplier = demand_multiplier;
+		} else if ( strcmp(argv[iopt], "-search_for_reliability") == 0 ){
+			/* adjusts demand multiplier until the target value of reliability is found */
+			iopt++;
+
+			if (iopt >= argc){
+				WTHROW(EX_INIT, "Expected an argument for the -search_for_reliability option");
+			}
+
+			stringstream ss;
+			ss << argv[iopt];
+			float target_reliability;
+			ss >> target_reliability;
+
+			if (target_reliability <= 0 || target_reliability > 1.0){
+				WTHROW(EX_INIT, "Expected an argument between 0 and 1. Got " << target_reliability);
+			}
+
+			user_opts->target_reliability = target_reliability;
 		} else if ( strcmp(argv[iopt], "-nodisp") == 0 ){
 			/* no graphics */
 			user_opts->nodisp = true;
@@ -302,6 +320,9 @@ static void wotan_print_usage(){
 	cout << "\t\ttypes will be treated as having a demand of 0 (disabled by default)" << endl << endl;
 
 	cout << "\t-demand_multiplier: if specified this scaling factor will be applied to node demands (except ipin/opin/source/sink)" << endl << endl;
+
+	cout << "\t-search_for_reliability: if specified, wotan will search for the demand_multiplier value required to achieve the specified value of reliability." << endl;
+	cout << "\t\tany values specified with the -demand_multiplier option will be ignored." << endl << endl;
 
 	cout << "\t-nodisp: if specified, graphics will be disabled (graphics are enabled by default)" << endl << endl;
 }

@@ -143,6 +143,8 @@ public:
 
 	int num_threads;			/* number of threads to use for path enumeration & probability analysis */
 
+	float target_reliability; 		/* if not UNDEFINED, Wotan will search for a demand multiplier that results in the specified value of reliability */
+
 	double ipin_probability;
 	double opin_probability;
 	double demand_multiplier;
@@ -318,9 +320,9 @@ public:
 
 	/* set methods */
 	void clear_demand();
-	void increment_demand(double);
+	void increment_demand(double increment, float demand_multiplier);
 	void set_virtual_source_node_ind(int);
-	void set_weight();
+	void set_weight(float demand_multiplier);
 
 	/* get methods */
 	short get_num_in_edges() const;
