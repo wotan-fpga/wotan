@@ -381,7 +381,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.100000" default_out_type="frac" default_out_val="0.100000">
+        <fc default_in_type="frac" default_in_val="0.400000" default_out_type="frac" default_out_val="0.400000">
 	</fc>
 
       <pinlocations pattern="spread"/>

@@ -31,7 +31,7 @@ using namespace std;
    The maximum pathweight considered for a source-sink pair is (weight from source to sink)*PATH_FLEXIBILITY_FACTOR.
    Note however that there is an additional constraint on maximum path weight set by analysis_settings->get_max_path_weight
      - if (weight from source to sink) exceeds this then the connection simply won't be analyzed. */				//TODO: confusing. can consolidate?
-#define PATH_FLEXIBILITY_FACTOR 3.0
+#define PATH_FLEXIBILITY_FACTOR 2.5
 
 /* If core analysis is enabled in user options then probability analysis is only performed for blocks in the region 
    that is >= 'CORE_OFFSET' blocks away from the perimeter */
@@ -1432,7 +1432,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 		}
 
 		if (probability_sink_reachable > 1){
-			WTHROW(EX_PATH_ENUM, "Got a probability > 1: " << probability_sink_reachable);
+			//WTHROW(EX_PATH_ENUM, "Got a probability > 1: " << probability_sink_reachable);
 		} else if (probability_sink_reachable < 0){
 			WTHROW(EX_PATH_ENUM, "Got a probability < 0: " << probability_sink_reachable);
 		}
@@ -1514,7 +1514,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
-	My_Bounded_Priority_Queue< int > PQ( max_path_weight*4 );
+	My_Bounded_Priority_Queue< int > PQ( max_path_weight*6 );
 	int *edge_list;
 	int num_children;
 

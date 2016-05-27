@@ -82,39 +82,39 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 
 		<!-- Define custom switch blocks -->
 		<switchblocklist>
-		<switchblock name="universal_turn_core" type="unidir">
+		<switchblock name="subset_turn_core" type="unidir">
 			<switchblock_location type="CORE"/>
 			<switchfuncs>
-					<func type="lt" formula="W-t-1"/>
+					<func type="lt" formula="t"/>
 					<func type="lb" formula="t"/>
 					<func type="rt" formula="t"/>
-					<func type="br" formula="W-t-1"/>
-					<func type="tl" formula="W-t-1"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
 					<func type="bl" formula="t"/>
 					<func type="tr" formula="t"/>
-					<func type="rb" formula="W-t-1"/>
+					<func type="rb" formula="t"/>
 
 			</switchfuncs>
 				<wireconn FT="l2s" TT="l2s" FP="0" TP="0"/>
 			<wireconn FT="l2s" TT="l2s" FP="1" TP="0"/>
 
 		</switchblock>
-		<switchblock name="universal_turn_perimeter" type="unidir">
+		<switchblock name="subset_turn_perimeter" type="unidir">
 			<switchblock_location type="PERIMETER"/>
 			<switchfuncs>
-					<func type="lt" formula="W-t-1"/>
+					<func type="lt" formula="t"/>
 					<func type="lb" formula="t"/>
 					<func type="rt" formula="t"/>
-					<func type="br" formula="W-t-1"/>
-					<func type="tl" formula="W-t-1"/>
+					<func type="br" formula="t"/>
+					<func type="tl" formula="t"/>
 					<func type="bl" formula="t"/>
 					<func type="tr" formula="t"/>
-					<func type="rb" formula="W-t-1"/>
+					<func type="rb" formula="t"/>
 
 			</switchfuncs>
 				<wireconn FT="l2s" TT="l2s" FP="0,1" TP="0"/>
 		</switchblock>
-		<switchblock name="universal_straight" type="unidir">
+		<switchblock name="subset_straight" type="unidir">
 			<switchblock_location type="EVERYWHERE"/>
 			<switchfuncs>
 					<func type="lr" formula="t"/>
@@ -346,7 +346,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.600000" default_out_type="frac" default_out_val="0.600000">
+        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.100000">
 	</fc>
 
       <pinlocations pattern="spread"/>

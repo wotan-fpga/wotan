@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy_reg
 import types
-import sympy
 
 from my_regex import *
 import arch_handler as ah
@@ -347,7 +346,7 @@ class Wotan_Tester:
 			       num_threads = 1):		#number of concurrent VPR executables to run
 
 		#VPR should be run with the -nodisp option and some seed
-		vpr_base_opts = '-nodisp --seed ' + str(vpr_seed)
+		vpr_base_opts = '-nodisp -timing_analysis off --seed ' + str(vpr_seed)
 
 		#make 2-d list into which results of each benchmark run will go
 		outputs = []
@@ -411,6 +410,10 @@ class Wotan_Tester:
 		for regex in regex_list:
 			ind = regex_list.index(regex)
 			benchmarks_result_list = outputs[:, ind].tolist()
+			for out in benchmarks_result_list:
+				print( '\t\tbenchmark %d routed at W=%d' % (benchmarks_result_list.index(out), int(out)) )
+				sys.stdout.flush()
+
 			geomean_outputs += [ get_geomean(benchmarks_result_list) ]
 
 
@@ -484,7 +487,7 @@ class Wotan_Tester:
 				target_regex = None,
 				demand_mult_low = 0.0,
 				demand_mult_high = 10,
-				max_tries = 15):
+				max_tries = 30):
 		
 		if '-demand_multiplier' in wotan_opts:
 			print('-demand_multiplier option already included in wotan_opts -- can\'t do binary search for pin demand')
@@ -526,8 +529,9 @@ class Wotan_Tester:
 					print('\t\tarchitecture looks too unroutable; can\'t meet binary search target of ' + str(target) + '. Returning.')
 					break
 				else:
-					print('has taken more than ' + str(max_tries) + ' tries to binary search for correct pin demand. terminating...')
-					sys.exit()
+					print('WARNING! Binary search has taken more than ' + str(max_tries) + ' tries to binary search for correct pin demand. using last value...')
+					break
+					#sys.exit()
 
 			#get next value of pin demand to try
 			demand_mult_current = (demand_mult_high + demand_mult_low) / 2
@@ -621,7 +625,7 @@ class Wotan_Tester:
 		target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
 		#a list of channel widths over which to evaluate w/ wotan (i.e. geomean)
-		chan_widths = [200]
+		chan_widths = [100]
 		vpr_evaluation_seeds = [1]
 		
 		wotan_results = []
@@ -661,7 +665,7 @@ class Wotan_Tester:
 												       target = target_prob,
 												       target_tolerance = target_tolerance,
 												       target_regex = target_regex,
-												       demand_mult_high = 20)
+												       demand_mult_high = 3)
 
 				#get metric used for evaluating the architecture
 				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
@@ -688,7 +692,7 @@ class Wotan_Tester:
 				#TODO: each thread should be executing in its own directory. also, update architecture here?
 				results = self.run_vpr_benchmarks_multiple_seeds(benchmarks, vpr_regex_list, wotan_arch_path,
 										 vpr_seed_list = vpr_evaluation_seeds,
-										 num_threads = 7)
+										 num_threads = 10)
 
 				#add VPR result to running list
 				vpr_result_entry = [arch_point_index, arch_point.as_str(), results[0]]
@@ -699,21 +703,26 @@ class Wotan_Tester:
 		wotan_results.sort(key=lambda x: x[2], reverse=True)
 		vpr_results.sort(key=lambda x: x[2])
 
-		#figure out how many pairwise comparisons of wotan agree with VPR
-		# --> compare every architecture result to every other architecture result
-		agree_cases = 0
-		agree_within_tolerance = 0
-		total_cases = 0
-		vpr_tolerance = 2
-		wotan_arch_ordering = [el[1:3] for el in wotan_results]		#get arch string and score for each element in 'wotan_arch_ordering'
-		if run_vpr_comparisons:
-			vpr_arch_ordering = [el[1:3] for el in vpr_results]
+		try:
+			#figure out how many pairwise comparisons of wotan agree with VPR
+			# --> compare every architecture result to every other architecture result
+			agree_cases = 0
+			agree_within_tolerance = 0
+			total_cases = 0
+			vpr_tolerance = 2
+			wotan_arch_ordering = [el[1:3] for el in wotan_results]		#get arch string and score for each element in 'wotan_arch_ordering'
+			if run_vpr_comparisons:
+				vpr_arch_ordering = [el[1:3] for el in vpr_results]
 
-			[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
-		else:
-			#compare wotan results against passed-in list
-			if len(wotan_arch_ordering) == len(vpr_arch_ordering):
 				[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
+			else:
+				#compare wotan results against passed-in list
+				if len(wotan_arch_ordering) == len(vpr_arch_ordering):
+					[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
+		except TypeError as e:
+			print('caught exception:')
+			print(e)
+			print('continuing anyway')
 
 		#print results to a file
 		with open(results_file, 'w+') as f:

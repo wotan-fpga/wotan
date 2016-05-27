@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy_reg
 import types
-import sympy
+#import sympy
 
 ###### Enums ######
 e_Test_Type = ('normal',
@@ -556,7 +556,7 @@ class Wotan_Tester:
 				target_regex = None,
 				demand_mult_low = 0.0,
 				demand_mult_high = 50,
-				max_tries = 15):
+				max_tries = 25):
 		
 		if '-demand_multiplier' in wotan_opts:
 			print('-demand_multiplier option already included in wotan_opts -- can\'t do binary search for pin demand')
@@ -625,6 +625,7 @@ class Wotan_Tester:
 
 
 			print( '\tat demand mult ' + str(demand_mult_current) + ' current val is ' + str(current) )
+			sys.stdout.flush()
 			
 			if demand_mult_low > demand_mult_high:
 				print('low value > high value in binary search!')
@@ -1165,7 +1166,7 @@ class Wotan_Tester:
 			for chanw in chan_widths:
 				print('W = ' + str(chanw))
 
-				vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -nodisp -pack -place -route_chan_width ' + str(chanw)
+				vpr_opts = wotan_arch_path + ' ../vtr_flow/benchmarks/blif/alu4.blif -nodisp -pack -place -dump_rr_structs_file ./dumped_rr_structs.txt -route_chan_width ' + str(chanw)
 				self.run_vpr( vpr_opts )
 
 				#run binary search to find pin demand at which the target_regex hits its target value 
@@ -1212,19 +1213,24 @@ class Wotan_Tester:
 
 		#figure out how many pairwise comparisons of wotan agree with VPR
 		# --> compare every architecture result to every other architecture result
-		agree_cases = 0
-		agree_within_tolerance = 0
-		total_cases = 0
-		vpr_tolerance = 2
-		wotan_arch_ordering = [el[1:3] for el in wotan_results]		#get arch string and score for each element in 'wotan_arch_ordering'
-		if run_vpr_comparisons:
-			vpr_arch_ordering = [el[1:3] for el in vpr_results]
+		try:
+			agree_cases = 0
+			agree_within_tolerance = 0
+			total_cases = 0
+			vpr_tolerance = 2
+			wotan_arch_ordering = [el[1:3] for el in wotan_results]		#get arch string and score for each element in 'wotan_arch_ordering'
+			if run_vpr_comparisons:
+				vpr_arch_ordering = [el[1:3] for el in vpr_results]
 
-			[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
-		else:
-			#compare wotan results against passed-in list
-			if len(wotan_arch_ordering) == len(vpr_arch_ordering):
 				[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
+			else:
+				#compare wotan results against passed-in list
+				if len(wotan_arch_ordering) == len(vpr_arch_ordering):
+					[agree_cases, agree_within_tolerance, total_cases] = compare_wotan_vpr_arch_orderings(wotan_arch_ordering, vpr_arch_ordering, vpr_tolerance)
+		except TypeError as e:
+			print('Caught exception')
+			print(e)
+			print('Continuing anyway')
 
 		#print results to a file
 		with open(results_file, 'w+') as f:
@@ -1748,68 +1754,66 @@ def my_custom_archs_list(arch_dictionaries):
 	#arch_strings += ['len4_universal_fcin0.15_fcout0.05_arch:4LUT-noequiv']
 	#arch_strings += ['len1_planar_fcin0.05_fcout0.1_arch:4LUT-noequiv']
 
-
-	arch_strings += ['len1_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.65_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.45_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.45_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_wilton_fcin0.15_fcout0.35_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_wilton_fcin0.25_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.25_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.55_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.15_fcout0.45_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.45_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.15_fcout0.25_arch:6LUT-iequiv']	
-	arch_strings += ['len2_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.25_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len2_universal_fcin0.15_fcout0.05_arch:6LUT-iequiv']	
-	arch_strings += ['len1_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.65_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.25_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.55_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.85_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.75_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.35_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.65_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.45_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.15_fcout0.55_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.15_arch:6LUT-iequiv']	
-	arch_strings += ['len4_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len4_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv']	
-	arch_strings += ['len4_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.15_fcout0.05_arch:6LUT-iequiv']	
-	arch_strings += ['len1_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']	
-
+	arch_strings += ['len1_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.65_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.15_fcout0.75_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']
+	arch_strings += ['len2_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv']
+	arch_strings += ['len2_universal_fcin0.15_fcout0.85_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']
+	arch_strings += ['len1_wilton_fcin0.45_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_universal_fcin0.15_fcout0.35_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.15_fcout0.45_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.75_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv']
+	arch_strings += ['len1_wilton_fcin0.65_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.75_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.45_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.25_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.65_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.25_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.75_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.15_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.55_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.45_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_wilton_fcin0.15_fcout0.05_arch:6LUT-iequiv']
+	arch_strings += ['len1_universal_fcin0.15_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_wilton_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_universal_fcin0.05_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_wilton_fcin0.55_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_wilton_fcin0.35_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len2_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.65_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.35_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.55_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.85_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.35_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.85_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.65_arch:6LUT-iequiv']
+	arch_strings += ['len4_wilton_fcin0.25_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.15_fcout0.75_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.15_fcout0.55_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.25_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.75_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.15_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.25_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.35_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_wilton_fcin0.15_fcout0.15_arch:6LUT-iequiv']
+	arch_strings += ['len4_planar_fcin0.15_fcout0.1_arch:6LUT-iequiv']
+	arch_strings += ['len4_universal_fcin0.15_fcout0.05_arch:6LUT-iequiv']
+	arch_strings += ['len1_planar_fcin0.05_fcout0.1_arch:6LUT-iequiv']
 
 
 

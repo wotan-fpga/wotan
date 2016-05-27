@@ -4,7 +4,7 @@ import numpy as np
 import new_wotan_tester as wt
 
 ############ Paths ############
-base_path = '/autofs/fs1.ece/fs1.eecg.vaughn/opetelin'
+base_path = '/home/opetelin'
 vtr_path = base_path + "/vtr"
 wotan_path = base_path + "/wotan"
 
@@ -48,8 +48,10 @@ regex_Rel = (
 #TODO wotan: WORST_ROUTABILITY_PERCENTILE, FRACTION_CONNS, length prob distributions
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 8 -keep_path_count_history y'
-wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
+#XXX change path count history to y
+wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
+#wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
+wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
 
 wotan_opts = wotan_opts_normal
@@ -81,9 +83,9 @@ tester = wt.Wotan_Tester(
 arch_list = wt.my_custom_archs_list()
 
 
-#vpr_arch_ordering = wt.read_file_into_split_string_list('./4LUT_vpr_ordering.txt')
 vpr_arch_ordering = []
-tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 
+#vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_new_ordering.txt')
+tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering10.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 

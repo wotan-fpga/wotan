@@ -112,8 +112,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 			<wireconn FT="l4s" TT="l4s" FP="3" TP="0"/>
 			<wireconn FT="l8g" TT="l8g" FP="0" TP="0"/>
 			<wireconn FT="l8g" TT="l8g" FP="4" TP="0"/>
-			<wireconn FT="l8g" TT="l4s" FP="0" TP="0"/>
-			<wireconn FT="l8g" TT="l4s" FP="4" TP="0"/>
 
 		</switchblock>
 		<switchblock name="universal_turn_perimeter" type="unidir">
@@ -131,7 +129,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 			</switchfuncs>
 				<wireconn FT="l4s" TT="l4s" FP="0,1,2,3" TP="0"/>
 			<wireconn FT="l8g" TT="l8g" FP="0,4" TP="0"/>
-			<wireconn FT="l8g" TT="l4s" FP="0,4" TP="0"/>
 
 		</switchblock>
 		<switchblock name="universal_straight" type="unidir">
@@ -146,8 +143,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 				<wireconn FT="l4s" TT="l4s" FP="0" TP="0"/>
 			<wireconn FT="l8g" TT="l8g" FP="0" TP="0"/>
 			<wireconn FT="l8g" TT="l8g" FP="4" TP="0"/>
-			<wireconn FT="l8g" TT="l4s" FP="0" TP="0"/>
-			<wireconn FT="l8g" TT="l4s" FP="4" TP="0"/>
 
 		</switchblock>
 	</switchblocklist>
@@ -183,7 +178,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
         </mode>
 
         <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
-		<segment name="l8g" in_val="0" out_val="1.000000"/>
 	</fc>
 
         <!-- IOs go on the periphery of the FPGA, for consistency, 
@@ -372,8 +366,7 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </interconnect>
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
-        <fc default_in_type="frac" default_in_val="0.100000" default_out_type="frac" default_out_val="0.050000">
-		<segment name="l8g" in_val="0" out_val="0.050000"/>
+        <fc default_in_type="frac" default_in_val="0.200000" default_out_type="frac" default_out_val="0.050000">
 	</fc>
 
       <pinlocations pattern="spread"/>
@@ -565,7 +558,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
       </mode>
 
         <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
-		<segment name="l8g" in_val="0" out_val="1.000000"/>
 	</fc>
       <pinlocations pattern="spread"/>
 
@@ -1170,7 +1162,6 @@ k6 N10 CLB is fractional and is based on the k6_frac_N10_mem32K_40nm architectur
 
       <!-- Every input pin is driven by 15% of the tracks in a channel, every output pin is driven by 10% of the tracks in a channel -->
         <fc default_in_type="frac" default_in_val="1.000000" default_out_type="frac" default_out_val="1.000000">
-		<segment name="l8g" in_val="0" out_val="1.000000"/>
 	</fc>
       <pinlocations pattern="spread"/>
 

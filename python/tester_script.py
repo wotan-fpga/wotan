@@ -5,7 +5,7 @@ import wotan_tester as wt
 
 ############ Paths ############
 
-base_path = "/autofs/fs1.ece/fs1.eecg.vaughn/opetelin"
+base_path = "/home/opetelin"
 vtr_path = base_path + "/vtr"
 wotan_path = base_path + "/wotan"
 
@@ -21,8 +21,8 @@ arch_dir = wotan_path + '/arch'
 #             '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test_lattice.xml'}
 
 
-wotan_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm_only_clb.xml',
-               '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv_only_clb.xml'}
+wotan_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
+               '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv.xml'}
 
 vpr_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
              '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv.xml'}
@@ -270,7 +270,7 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 #arch_list = tester.make_random_arch_list(60)
 arch_list = wt.my_custom_archs_list(arch_dictionaries)
-vpr_arch_ordering = wt.read_file_into_split_string_list(vpr_ordering_6LUT)
+vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_vpr_ordering.txt')
 #arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
 #vpr_arch_ordering = []
 tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering.txt', 

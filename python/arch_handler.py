@@ -5,7 +5,7 @@ from my_regex import *
 #write requirements of this script here
 
 
-arch_base = '/autofs/fs1.ece/fs1.eecg.vaughn/opetelin/wotan/arch'
+arch_base = '/home/opetelin/wotan/arch'
 
 valid_switchblocks = ['wilton', 'universal', 'subset']
 valid_topologies = ['on-cb-off-cb',
