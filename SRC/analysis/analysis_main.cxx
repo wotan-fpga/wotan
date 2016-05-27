@@ -337,8 +337,9 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 	if (user_opts->target_reliability == UNDEFINED){
 		analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
 	} else {
+		/* perform a binary search to find the demand_multiplier value required to achieve the target level of reliability */
 		int max_tries = 20;
-		float target_tolerance = 0.01;
+		float target_tolerance = 0.02;
 		float multiplier_high = 3.0;
 		float multiplier_low = 0.0;
 		float reliability = -1;

@@ -621,8 +621,7 @@ class Wotan_Tester:
 		#specifies how architectures should be evaluated.
 		#binary search over pin demand until target prob is hit with specified tolerance
 		target_prob = 0.5
-		target_tolerance = 0.0099
-		target_regex = '.*Routability metric: (\d+\.*\d*).*'
+		#target_regex = '.*Routability metric: (\d+\.*\d*).*'
 
 		#a list of channel widths over which to evaluate w/ wotan (i.e. geomean)
 		chan_widths = [100]
@@ -660,16 +659,19 @@ class Wotan_Tester:
 				vpr_out = self.run_vpr( vpr_opts )
 
 				#run binary search to find pin demand at which the target_regex hits its target value 
-				(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
-												       test_type = self.test_type,
-												       target = target_prob,
-												       target_tolerance = target_tolerance,
-												       target_regex = target_regex,
-												       demand_mult_high = 3)
+				#(target_val, demand_mult, wotan_out) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
+				#								       test_type = self.test_type,
+				#								       target = target_prob,
+				#								       target_tolerance = target_tolerance,
+				#								       target_regex = target_regex,
+				#								       demand_mult_high = 3)
+
+				adjusted_wotan_opts = wotan_opts + ' -search_for_reliability ' + str(target_prob)
+				wotan_out = self.run_wotan(adjusted_wotan_opts)
 
 				#get metric used for evaluating the architecture
-				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
-				metric_label = 'Demand Multiplier'
+				metric_regex = '.*Absolute routability metric: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+				metric_label = 'Absolute routability metric'
 				metric_value_list += [float(regex_last_token(wotan_out, metric_regex))]
 
 			#add metric to list of wotan results
