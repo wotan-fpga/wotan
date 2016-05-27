@@ -106,6 +106,10 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 		if (Q.empty() && !nodes_waiting.empty()){
 			/* encountered a cycle somewhere. get first node from the sorted nodes_waiting structure and continue expanding
 			   on that */
+			if (nodes_waiting.empty()){
+				WTHROW(EX_PATH_ENUM, "Nodes waiting queue empty!");
+			}
+
 			Node_Waiting node_waiting = (*nodes_waiting.begin());
 			nodes_waiting.erase(node_waiting);
 

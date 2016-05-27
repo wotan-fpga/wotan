@@ -553,7 +553,7 @@ void initialize_reverse_node_edges_and_switches( Routing_Structs *routing_struct
 	/* pass 1 - determine what the incoming edges/switches are for each node */
 	for (int inode = 0; inode < num_nodes; inode++){
 		int from_node_ind = inode;
-		RR_Node rr_node = routing_structs->rr_node[from_node_ind];
+		RR_Node &rr_node = routing_structs->rr_node[from_node_ind];
 		
 		/* for each destination node mark which node the connection is coming from and which switch it uses */
 		for (int i_out_edge = 0; i_out_edge < rr_node.get_num_out_edges(); i_out_edge++){

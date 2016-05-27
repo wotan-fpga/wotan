@@ -8,6 +8,7 @@
 #include <functional>
 #include <pthread.h>
 #include <malloc.h>
+#include "globals.h"
 #include "analysis_main.h"
 #include "wotan_types.h"
 #include "exception.h"
@@ -30,7 +31,7 @@ using namespace std;
    The maximum pathweight considered for a source-sink pair is (weight from source to sink)*PATH_FLEXIBILITY_FACTOR.
    Note however that there is an additional constraint on maximum path weight set by analysis_settings->get_max_path_weight
      - if (weight from source to sink) exceeds this then the connection simply won't be analyzed. */				//TODO: confusing. can consolidate?
-#define PATH_FLEXIBILITY_FACTOR 2.0
+#define PATH_FLEXIBILITY_FACTOR 3.0
 
 /* If core analysis is enabled in user options then probability analysis is only performed for blocks in the region 
    that is >= 'CORE_OFFSET' blocks away from the perimeter */
@@ -243,7 +244,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 /* fills the t_ss_distances structures according to source & sink distances to intermediate nodes. 
    also returns an adjusted maximum path weight (to be further passed on to path enumeration / probability analysis functions)
    based on the distance from the source to the sink */
-void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
+bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist);
 
 /* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
@@ -354,6 +355,11 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
 
 	analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
+
+
+	//cout << "enum nodes popped: " << g_enum_nodes_popped << endl;
+	//cout << "prob nodes popped: " << g_prob_nodes_popped << endl;
+	//cout << "total adjusted enum path weight: " << g_total_adjusted_enum_path_weight << endl;
 
 	update_screen(routing_structs, arch_structs, user_opts);
 }
@@ -470,6 +476,7 @@ void analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *a
 	cout << "Enumerating paths for physical block type named '" << fill_type->get_name() << "'" << endl;
 
 	/* allocate appropriate data structures for each thread */
+	//XXX try increasing this!!!
 	int max_path_weight_bound = analysis_settings->get_max_path_weight( user_opts->max_connection_length ) * PATH_FLEXIBILITY_FACTOR;
 	int num_threads = user_opts->num_threads;
 	t_thread_ss_distances thread_ss_distances;
@@ -797,7 +804,9 @@ static void get_corresponding_sink_ids(User_Options *user_opts, Analysis_Setting
 
 						sink_indices.push_back( sink_node_ind );
 						ss_length.push_back( ilen );
-						source_conns_at_length.push_back( num_conns_at_length );
+
+						//XXX
+						source_conns_at_length.push_back( num_conns_at_length * user_opts->length_probabilities[ilen] * FRACTION_CONNS);
 
 						f_analysis_results.desired_conns++;
 					}
@@ -869,7 +878,7 @@ static float node_demand_metric(User_Options *user_opts, t_rr_node &rr_node){
 void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, int num_threads){
 
 	/* create num_threads-1 threads (the remaining thread is executed in the current context) */
-	for (int ithread = 0; ithread < num_threads-1; ithread++){
+	for (int ithread = 0; ithread < num_threads; ithread++){
 		/* create pthread with default attributes */
 		int result = pthread_create(&threads[ithread], NULL, enumerate_paths_from_source, (void*) &thread_conn_info[ithread]);
 		if (result != 0){
@@ -878,10 +887,10 @@ void launch_pthreads(t_thread_conn_info &thread_conn_info, t_threads &threads, i
 	}
 
 	/* the last thread is launched here */
-	enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
+	//enumerate_paths_from_source( (void*) &thread_conn_info[num_threads-1] );
 
 	/* wait for threads to complete */
-	for (int ithread = 0; ithread < num_threads-1; ithread++){
+	for (int ithread = 0; ithread < num_threads; ithread++){
 		int result = pthread_join(threads[ithread], NULL);
 		if (result != 0){
 			WTHROW(EX_PATH_ENUM, "Failed to join thread!");
@@ -905,65 +914,27 @@ void* enumerate_paths_from_source( void *ptr ){
 	t_nodes_visited &nodes_visited = (*conn_info->nodes_visited);
 	e_topological_mode topological_mode = conn_info->topological_mode;
 
+	try{
+		//random_shuffle(source_sink_pairs.begin(), source_sink_pairs.end());
 
-	int connections_done = 0;
+		for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
+			Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
+			int source_node_ind = ss_pair.source_ind;
+			int sink_node_ind = ss_pair.sink_ind;
+			int ss_length = ss_pair.ss_length;
+			int source_conns_at_length = ss_pair.source_conns_at_length;
 
-	//random_shuffle(source_sink_pairs.begin(), source_sink_pairs.end());
+			/* analyze this source/sink connection */
+			analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
+						routing_structs, ss_distances, node_topo_inf, ss_length, 
+						source_conns_at_length, nodes_visited, topological_mode, user_opts);
+		}
 
-	for (int ipair = 0; ipair < (int)source_sink_pairs.size(); ipair++){
-		Source_Sink_Pair ss_pair = source_sink_pairs[ipair];
-		int source_node_ind = ss_pair.source_ind;
-		int sink_node_ind = ss_pair.sink_ind;
-		int ss_length = ss_pair.ss_length;
-		int source_conns_at_length = ss_pair.source_conns_at_length;
-
-		/* analyze this source/sink connection */
-		analyze_connection(source_node_ind, sink_node_ind, analysis_settings, arch_structs, 
-					routing_structs, ss_distances, node_topo_inf, ss_length, 
-					source_conns_at_length, nodes_visited, topological_mode, user_opts);
-
-
-
-
-		///***** WEIRD THREAD SYNCHRONIZATION -- Updating Node Weights *****/
-		///* threads will exit at the same time when the active thread count drops to 0 */
-		//bool thread_done = false;
-		//if (ipair == (int)source_sink_pairs.size()-1){
-		//	thread_done = true;
-		//	pthread_mutex_lock(&f_analysis_results.thread_mutex);
-		//	f_analysis_results.active_threads--;
-		//	pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-		//}
-
-		///* do-while makes sure that all threads exit at the same time; otherwise pthread barrier will get messed up */
-		//do{
-
-		//	/* Node weights are updated after each thread goes through a certain number of connections */
-		//	if (connections_done == 300 || thread_done){
-
-		//		pthread_barrier_wait(&f_analysis_results.thread_barrier);
-
-		//		/* update node weights based on their demands; synchronize between threads */
-		//		if (!pthread_mutex_trylock(&f_analysis_results.thread_mutex)){
-		//			/* this thread will do the node weight updates */				
-		//	
-		//			for (int inode = 0; inode < routing_structs->get_num_rr_nodes(); inode++){
-		//				routing_structs->rr_node[inode].set_weight();
-		//			}
-
-		//			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-		//		} else {
-		//			/* all other threads synchronize here */
-		//			pthread_mutex_lock(&f_analysis_results.thread_mutex);
-		//			pthread_mutex_unlock(&f_analysis_results.thread_mutex);
-		//		}
-		//		connections_done = 0;
-
-		//	}
-
-		//	connections_done++;
-
-		//} while (thread_done && f_analysis_results.active_threads != 0);
+	} catch (Wotan_Exception &e){
+		cerr << endl << "Thread caught exception: " << e.what() << endl;
+		cerr << "LINE: " << e.line << endl;
+		cerr << "FILE: " << e.file << endl;
+		throw;
 	}
 
 	return (void*) NULL;
@@ -1103,6 +1074,10 @@ void alloc_thread_ss_distances(t_thread_ss_distances &thread_ss_distances, int n
 /* allocates node topological traversal info vector for each thread */
 void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, int num_threads, int max_path_weight_bound, t_rr_node &rr_node, int num_nodes){
 	thread_node_topo_inf.assign(num_threads, t_node_topo_inf(num_nodes, Node_Topological_Info()));
+
+	//giving a bit of extra leeway
+	max_path_weight_bound *= 1.3;
+
 	for (int inode = 0; inode < num_nodes; inode++){
 		for (int ithread = 0; ithread < num_threads; ithread++){
 			thread_node_topo_inf[ithread][inode].buckets.alloc_source_sink_buckets(max_path_weight_bound+1, max_path_weight_bound+1);
@@ -1242,11 +1217,21 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 	int min_dist = UNDEFINED;
 
 	/* set node distances for potentially relevant portion of graph */
-	set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
-	set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
+	//XXX: set_node_distances is included in get_ss_distances_and_adjust_max_path_weight. so is this a mistake?
+	//set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
+	//set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
 
-	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
-					nodes_visited, &max_path_weight, &min_dist);
+	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
+					nodes_visited, &max_path_weight, &min_dist)){
+		//could not reach source or sink
+		return;
+	}
+
+	
+	pthread_mutex_lock(&g_mutex);
+	g_total_adjusted_enum_path_weight += (float)max_path_weight;
+	pthread_mutex_unlock(&g_mutex);
+	//cout << "s " << source_node_ind << "  d " << sink_node_ind << "   max path weight\t" << max_path_weight << endl;
 
 	/* perform path enumeration */
 	if (max_path_weight > 0 && min_dist > 0){
@@ -1309,8 +1294,11 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);
 	int min_dist = UNDEFINED;
 
-	get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
-					nodes_visited, &max_path_weight, &min_dist);
+	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
+					nodes_visited, &max_path_weight, &min_dist)){
+		//could not reach source or sink
+		return 0.0;
+	}
 
 	/* Get a pointer to the fill type block descriptor -- the one that describes a regular logic block.
 	   If a fill type descriptor has never been set (such as when the graph read-in by Wotan is 'simple' and
@@ -1457,25 +1445,50 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 /* fills the t_ss_distances structures according to source & sink distances to intermediate nodes. 
    also returns an adjusted maximum path weight (to be further passed on to path enumeration / probability analysis functions)
    based on the distance from the source to the sink */
-void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
+bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances,
                                 int max_path_weight, t_nodes_visited &nodes_visited, int *adjusted_max_path_weight, int *source_sink_dist){
 	
+	/* 
+	XXX: initial max_path_weight passed to this function affects the final enumeration and probability analysis. I think this happens because
+		the max_path_weight is adjusted inside the set_node_distances function and later again further below. max_path_weight affects
+		the source-sink distances that are set. furthermore, max_path_weight can actually increase after set_node_distances is called, again
+		affecting which nodes are considered legal. a higher initial max_path_weight will mean that more nodes will be considered as legal
+		later on if the max_path_weight is also increased in set_node_distances.
+
+		is there a solution here to improve consistency?
+			- i've moved the BACKWARD_TRAVERSAL set_node_distances call *after* adjusting max path weight. will see how this affects things
+	*/
+
+	bool reached_source_sink = true;
+
 	/* set node distances for potentially relevant portion of graph */
 	set_node_distances(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL, nodes_visited);
-	set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
 
 	/* adjust maximum allowable path weight based on minimum distance. FIXME. this may not work well for multiple wirelengths */
 	int min_dist_sink = ss_distances[sink_node_ind].get_source_distance();
-	int min_dist_source = ss_distances[source_node_ind].get_sink_distance();
-	if (min_dist_sink != min_dist_source){
-		//WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
+
+	if (min_dist_sink < 0){
+		return false;
 	}
 
 	max_path_weight = adjust_max_path_weight_based_on_ss_dist(min_dist_sink, max_path_weight);
-	//max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), max_path_weight);	//adjust_max_path_weight_based_on_ss_dist
+
+
+	set_node_distances(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL, nodes_visited);
+	int min_dist_source = ss_distances[source_node_ind].get_sink_distance();
+	if (min_dist_sink != min_dist_source){
+		//commented because this can throw when we use dynamic node weights (in RR_Node::set_weight)
+		//WTHROW(EX_PATH_ENUM, "Distance to source doesn't match distance to sink. " << min_dist_source << " vs " << min_dist_sink << endl);
+	}
+
+	if (min_dist_source < 0){
+		return false;
+	}
 
 	(*adjusted_max_path_weight) = max_path_weight;
 	(*source_sink_dist) = min_dist_sink;
+
+	return true;
 }
 
 /* adjusts maximum path weight based on the minimum distance of the current source/sink pair.
@@ -1484,7 +1497,9 @@ void get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight){
 	int adjusted_max_path_weight = UNDEFINED;
 
-	adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
+	//adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
+
+	adjusted_max_path_weight = (int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR);
 
 	return adjusted_max_path_weight;
 }
@@ -1499,7 +1514,7 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 	//	" to " << to_node_ind << " at " << rr_node[to_node_ind].get_xlow() << "," << rr_node[to_node_ind].get_ylow() << endl;
 
 	/* define a bounded-height priority queue in which to store nodes during traversal */
-	My_Bounded_Priority_Queue< int > PQ( max_path_weight*2 );
+	My_Bounded_Priority_Queue< int > PQ( max_path_weight*4 );
 	int *edge_list;
 	int num_children;
 
@@ -1520,7 +1535,6 @@ void set_node_distances(int from_node_ind, int to_node_ind, t_rr_node &rr_node, 
 		int node_ind = PQ.top();
 		int node_path_weight = PQ.top_weight();	//should match the distance from this node to source/sink (if doing forward/backward traversal)
 		PQ.pop();
-
 
 		if (node_ind == to_node_ind){
 			/* adjust max path weight (determines which nodes will be considered during this traversal) */

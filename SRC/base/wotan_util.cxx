@@ -124,7 +124,7 @@ template <typename T> void My_Bounded_Priority_Queue<T>::set_max_weight(int max_
 /* push object of specified weight to queue */
 template <typename T> void My_Bounded_Priority_Queue<T>::push(T object, int weight){
 	if (weight > this->max_weight || weight < 0){
-		WTHROW(EX_OTHER, "Object pushed into bounded-height priority queue has weight outside 0..max_weight");
+		WTHROW(EX_OTHER, "Object pushed into bounded-height priority queue has weight outside 0..max_weight. Object weight: " << weight << "  Max weight: " << this->max_weight);
 	}
 
 	this->my_pq[weight].push( object );

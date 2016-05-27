@@ -11,9 +11,11 @@ the constituent functions are meant to be passed-in to a topological traversal f
 #include "enumerate.h"
 #include "exception.h"
 #include "wotan_util.h"
+#include "globals.h"
 
 #include "draw.h"
 #include "analysis_main.h"
+
 
 using namespace std;
 
@@ -58,6 +60,10 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 					rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[to_node_ind]);
 				}
 			}
+
+			//pthread_mutex_lock(&g_mutex);
+			//g_enum_nodes_popped++;
+			//pthread_mutex_unlock(&g_mutex);
 		}
 
 		/* add to existing count of the number of routing nodes (CHANX/CHANY/IPIN/OPIN) in the legal subgraph
