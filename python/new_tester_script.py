@@ -85,7 +85,7 @@ arch_list = wt.my_custom_archs_list()
 
 vpr_arch_ordering = []
 #vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_new_ordering.txt')
-tester.evaluate_architecture_list(arch_list, wotan_path + '/python/absolute_ordering10.txt', 
+tester.evaluate_architecture_list(arch_list, wotan_path + '/python/wotan_final_4LUT.txt', 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 

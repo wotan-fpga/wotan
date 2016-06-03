@@ -434,7 +434,7 @@ def get_random_arch_names(num_archs, lut_size):
 			g_wirelength = wirelengths[1]
 
 		#check that the wirelength mix makes sense with the given LUT size
-		if ( (lut_size == 4 and (wirelength_mix == '4-4' or wirelength_mix == '4-8' or wirelength_mix == '4-16')) 
+		if ( (lut_size == 4 and (wirelength_mix == '4-4' or wirelength_mix == '4-8' or wirelength_mix == '4-16' or wirelength_mix == '16')) 
 		    or (lut_size == 6 and (wirelength_mix == '2-4' or wirelength_mix == '2-8' or wirelength_mix == '2-16')) ):
 			continue
 

@@ -31,7 +31,7 @@ using namespace std;
    The maximum pathweight considered for a source-sink pair is (weight from source to sink)*PATH_FLEXIBILITY_FACTOR.
    Note however that there is an additional constraint on maximum path weight set by analysis_settings->get_max_path_weight
      - if (weight from source to sink) exceeds this then the connection simply won't be analyzed. */				//TODO: confusing. can consolidate?
-#define PATH_FLEXIBILITY_FACTOR 2.5
+#define PATH_FLEXIBILITY_FACTOR 2.0
 
 /* If core analysis is enabled in user options then probability analysis is only performed for blocks in the region 
    that is >= 'CORE_OFFSET' blocks away from the perimeter */
@@ -859,7 +859,7 @@ static void get_corresponding_sink_ids(User_Options *user_opts, Analysis_Setting
 						ss_length.push_back( ilen );
 
 						//XXX
-						source_conns_at_length.push_back( num_conns_at_length * user_opts->length_probabilities[ilen] * FRACTION_CONNS);
+						source_conns_at_length.push_back( num_conns_at_length /** user_opts->length_probabilities[ilen] * FRACTION_CONNS*/);
 
 						f_analysis_results.desired_conns++;
 					}
