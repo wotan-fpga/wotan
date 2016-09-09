@@ -7,18 +7,18 @@ import new_wotan_tester as wt
 base_path = '/home/opetelin'
 vtr_path = base_path + "/vtr"
 wotan_path = base_path + "/wotan"
-
-#arch_dir = vtr_path + '/vtr_flow/arch/timing'
 arch_dir = wotan_path + '/arch'
 
+#choose one
+vpr_arch_ordering = [] #evaluate architecture list using VPR
+#vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_new_ordering.txt')  #read in VPR architecture ordering from this file
 
-############ "Golden" architecture ordering ############
-vpr_ordering_6LUT = wotan_path + '/python/6LUT_vpr_ordering.txt'
-vpr_ordering_4LUT = wotan_path + '/python/4LUT_vpr_ordering.txt'
+#print result here
+result_file = wotan_path + '/python/wotan_final_4LUT.txt'
 
 
 ############ Wotan Labels and Regex Expressions ############
-#labels for regular Wotan output
+#labels for regular Wotan output  #XXX: not used!
 labels_Rel = (
 	'Fraction Enumerated',		#0
 	'Total Demand',			#1
@@ -30,7 +30,7 @@ labels_Rel = (
 	'Routability Metric'		#7
 )
 
-#regex for regular Wotan output
+#regex for regular Wotan output  #XXX: not used!
 regex_Rel = (
 	'.*fraction enumerated: (\d*\.*\d+).*',
 	'.*Total demand: (\d+\.*\d+).*',
@@ -46,18 +46,16 @@ regex_Rel = (
 
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
-#wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
-wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
+wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
-
-wotan_opts = wotan_opts_normal
 
 #Test type variable applies when 'run_all_tests_sequentially' is used. It is not used for 'run_architecture_comparisons' (which are hard-coded for a specific test type already)
-test_type = 'binary_search_routability_metric'
+test_type = 'binary_search_routability_metric'	#XXX: not used!
 
 #index into labels_Rel & regex_Rel that determines which regex'd value will be plotted on a graph
-plot_index = 4
+plot_index = 4	#XXX: not used!
 
 
 
@@ -76,10 +74,7 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 arch_list = wt.my_custom_archs_list()
 
-
-vpr_arch_ordering = []
-#vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_new_ordering.txt')
-tester.evaluate_architecture_list(arch_list, wotan_path + '/python/wotan_final_4LUT.txt', 
+tester.evaluate_architecture_list(arch_list, result_file, 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 

@@ -976,6 +976,10 @@ def my_custom_archs_list():
 	arch_list = []
 	arch_strings = []
 
+	#Legend (corresponds to arch_handler.py):
+	#k<LUT_size>   s<semi-global segment length>    g<global segment length>    <switchblock (universal/subset/wilton)>
+        #                  topology-<interconect topology>       fcin<input Fc>     fcout<output Fc>
+
 
 	#### 100 random 6LUT architectures ####
 	#arch_strings += ['k6_s4_g8_universal_topology-on-cb-off-cb_fcin0.2_fcout0.05']
