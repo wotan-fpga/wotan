@@ -670,7 +670,7 @@ class Wotan_Tester:
 												       target = target_prob,
 												       target_tolerance = target_tolerance,
 												       target_regex = target_regex,
-												       demand_mult_high = 30)
+												       demand_mult_high = 200)
 
 				#get metric used for evaluating the architecture
 				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
