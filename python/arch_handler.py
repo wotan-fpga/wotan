@@ -584,7 +584,7 @@ if __name__ == '__main__':
 
 	#arch_path = get_path_to_arch(sb_pattern, wire_topology, wirelengths, global_via_repeat, fc_in, fc_out, lut_size)
 
-	arch_name_list = get_random_arch_names(100, 4)
+	arch_name_list = get_random_arch_names(100, 6)
 	for a in arch_name_list:
 		print(a)
 
