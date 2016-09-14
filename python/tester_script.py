@@ -1,42 +1,24 @@
 import os
 import time
 import numpy as np
-import wotan_tester as wt
+import new_wotan_tester as wt
 
 ############ Paths ############
-
-base_path = "/home/opetelin"
+base_path = '/home/opetelin'
 vtr_path = base_path + "/vtr"
 wotan_path = base_path + "/wotan"
-
-#arch_dir = vtr_path + '/vtr_flow/arch/timing'
 arch_dir = wotan_path + '/arch'
 
+#choose one
+vpr_arch_ordering = [] #evaluate architecture list using VPR
+#vpr_arch_ordering = wt.read_file_into_split_string_list('./6LUT_new_ordering.txt')  #read in VPR architecture ordering from this file
 
-############ Architectures ############
-#wotan_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb.xml',
-#               '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_only_clb_lattice.xml'}
-#
-#vpr_archs = {'6LUT-iequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test.xml',
-#             '4LUT-noequiv' : arch_dir + '/k6_frac_N10_mem32K_40nm_test_lattice.xml'}
-
-
-wotan_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
-               '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv.xml'}
-
-vpr_archs = {'6LUT-iequiv' : arch_dir + '/oleg_k6_N10_gate_boost_0.2V_22nm.xml',
-             '4LUT-noequiv' : arch_dir + '/oleg_k4_N8_I32_gate_boost_0.2V_22nm_noxbar_lut_equiv.xml'}
-
-arch_dictionaries = wt.Archs(wotan_archs, vpr_archs)
-
-
-############ "Golden" architecture ordering ############
-vpr_ordering_6LUT = wotan_path + '/python/6LUT_vpr_ordering.txt'
-vpr_ordering_4LUT = wotan_path + '/python/4LUT_vpr_ordering.txt'
+#print result here
+result_file = wotan_path + '/python/wotan_final_4LUT.txt'
 
 
 ############ Wotan Labels and Regex Expressions ############
-#labels for regular Wotan output
+#labels for regular Wotan output  #XXX: not used!
 labels_Rel = (
 	'Fraction Enumerated',		#0
 	'Total Demand',			#1
@@ -48,7 +30,7 @@ labels_Rel = (
 	'Routability Metric'		#7
 )
 
-#regex for regular Wotan output
+#regex for regular Wotan output  #XXX: not used!
 regex_Rel = (
 	'.*fraction enumerated: (\d*\.*\d+).*',
 	'.*Total demand: (\d+\.*\d+).*',
@@ -64,186 +46,17 @@ regex_Rel = (
 
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts_normal = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 12 -max_connection_length 8 -keep_path_count_history n'
-wotan_opts_rel_poly = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 7 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
+wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
-
-wotan_opts = wotan_opts_normal
 
 #Test type variable applies when 'run_all_tests_sequentially' is used. It is not used for 'run_architecture_comparisons' (which are hard-coded for a specific test type already)
-test_type = 'binary_search_routability_metric'
+test_type = 'binary_search_routability_metric'	#XXX: not used!
 
 #index into labels_Rel & regex_Rel that determines which regex'd value will be plotted on a graph
-plot_index = 4
+plot_index = 4	#XXX: not used!
 
-
-
-########### ALTERA-LIKE ARCHITECTURES ############
-test_suites_6lut = []
-
-#altera 6LUT -- fcout sweep with wilton and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['wilton'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#altera 6LUT -- fcin sweep with wilton and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['wilton'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#altera 6LUT -- fcout sweep with universal and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['universal'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#altera 6LUT -- fcin sweep with universal and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['universal'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#altera 6LUT -- fcout sweep with planar and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['subset'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#altera 6LUT -- fcin sweep with planar and input equivalence
-test_suites_6lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['subset'],
-				  arch_names=['6LUT-iequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-
-
-########### LATTICE-LIKE ARCHITECTURES ############
-test_suites_4lut = []
-
-#lattice 4lut -- fcout sweep with wilton and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['wilton'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#lattice 4lut -- fcin sweep with wilton and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['wilton'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#lattice 4lut -- fcout sweep with universal and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['universal'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#lattice 4lut -- fcin sweep with universal and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['universal'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#lattice 4lut -- fcout sweep with planar and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['subset'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcout',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-#lattice 4lut -- fcin sweep with planar and input equivalence
-test_suites_4lut += [wt.make_test_group(num_suites=3,
-                                  wirelengths=[1,2,4],
-				  switchblocks=['subset'],
-				  arch_names=['4LUT-noequiv'],
-				  arch_dictionaries=arch_dictionaries,
-				  sweep_type='fcin',
-				  sweep_range=np.arange(0.05, 0.95, 0.1).tolist(),
-				  output_regex_list=regex_Rel,
-				  output_label_list=labels_Rel,
-				  plot_index=plot_index,
-				  wotan_opts=wotan_opts
-				 )]
-
-test_suites = test_suites_6lut #+ test_suites_4lut
 
 
 ############ Run Tests ############
@@ -252,37 +65,20 @@ start_time = time.time()
 tester = wt.Wotan_Tester(
 		vtr_path = vtr_path,
 		wotan_path = wotan_path,
-		test_suite_2dlist = test_suites,
+		test_suite_2dlist = [],
 		test_type = test_type
 		)
 
-### Run test suites and plot groups of tests on the same graph
-#tester.run_all_tests_sequentially()
 
-
-### Run pairwise architecture comparisons
-#results_file = wotan_path + '/python/pair_test.txt'
-#arch_pairs_list = tester.make_random_arch_pairs_list(40)
-#arch_pairs_list = wt.my_custom_arch_pair_list(arch_dictionaries)
-#tester.run_architecture_comparisons(arch_pairs_list, results_file, wotan_opts,
-#                                    compare_against_VPR=True)
 
 ### Get absolute metric for a list of architecture points ###
-#arch_list = tester.make_random_arch_list(60)
-arch_list = wt.my_custom_archs_list(arch_dictionaries)
-vpr_arch_ordering = wt.read_file_into_split_string_list('./4LUT_vpr_ordering.txt')
-#arch_list = [ wt.Arch_Point_Info.from_str(el[0], arch_dictionaries) for el in vpr_arch_ordering ]		#el[0] represents the arch point as a string
-#vpr_arch_ordering = []
-tester.evaluate_architecture_list(arch_list, wotan_path + '/python/4LUT_absolute_ordering.txt', 
+arch_list = wt.my_custom_archs_list()
+
+tester.evaluate_architecture_list(arch_list, result_file, 
                                   wotan_opts,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 
 
-### Sweep on architecture over a range of channel widths
-##arch_point = wt.Arch_Point_Info.from_str('len1_universal_fcin0.15_fcout0.85_arch:4LUT-noequiv', arch_dictionaries)
-#arch_point = wt.Arch_Point_Info.from_str('len1_universal_fcin0.35_fcout0.1_arch:4LUT-noequiv', arch_dictionaries)
-#chan_sweep_results = tester.sweep_architecture_over_W(arch_point, np.arange(60, 110, 2).tolist())
-#print(chan_sweep_results)
 
 end_time = time.time()
 print('Done. Took ' + str(round(end_time - start_time, 3)) + ' seconds')
