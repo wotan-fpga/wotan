@@ -44,8 +44,8 @@ using namespace std;
 //#define WORST_NODE_DEMAND_PERCENTILE 0.05
 
 /* what percentage of worst connection probabilities (at each connection length) to look at? */
-#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.1		//0.1 driver and 0.5 fanout looked fairly good
-#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.1
+#define WORST_ROUTABILITY_PERCENTILE_DRIVERS 0.3		//0.1 driver and 0.5 fanout looked fairly good
+#define WORST_ROUTABILITY_PERCENTILE_FANOUT 0.3
 
 /* with what weights should driver & fanout components of the routability metric be combined */
 #define DRIVER_PROB_WEIGHT 0.5
@@ -54,7 +54,7 @@ using namespace std;
 				//After that re-enable pin demands... were my previous tests with or without them? :|
 				//TODO: switch to cutline for shits and giggles?
 
-#define FRACTION_CONNS 0.5
+#define FRACTION_CONNS 0.1
 
 
 /************ Forward-Declarations ************/
@@ -1129,7 +1129,7 @@ void alloc_thread_node_topo_inf(t_thread_node_topo_inf &thread_node_topo_inf, in
 	thread_node_topo_inf.assign(num_threads, t_node_topo_inf(num_nodes, Node_Topological_Info()));
 
 	//giving a bit of extra leeway
-	max_path_weight_bound *= 1.3;
+	max_path_weight_bound *= 3;
 
 	for (int inode = 0; inode < num_nodes; inode++){
 		for (int ithread = 0; ithread < num_threads; ithread++){
@@ -1486,7 +1486,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 		if (probability_sink_reachable > 1){
 			//WTHROW(EX_PATH_ENUM, "Got a probability > 1: " << probability_sink_reachable);
-		} else if (probability_sink_reachable < 0){
+		} else if (probability_sink_reachable < 0 and !PROBS_EQUAL(probability_sink_reachable, 0.0)){
 			WTHROW(EX_PATH_ENUM, "Got a probability < 0: " << probability_sink_reachable);
 		}
 	}
@@ -1548,9 +1548,9 @@ bool get_ss_distances_and_adjust_max_path_weight(int source_node_ind, int sink_n
 int adjust_max_path_weight_based_on_ss_dist(int min_dist_sink, int current_max_path_weight){
 	int adjusted_max_path_weight = UNDEFINED;
 
-	//adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
+	adjusted_max_path_weight = min((int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR), current_max_path_weight);
 
-	adjusted_max_path_weight = (int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR);
+	//adjusted_max_path_weight = (int)ceil(min_dist_sink * PATH_FLEXIBILITY_FACTOR);
 
 	return adjusted_max_path_weight;
 }
@@ -1662,7 +1662,6 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 				continue;
 			}
 
-
 			ss_distances[node_ind].set_source_distance( path_weight );
 			ss_distances[node_ind].set_visited_from_source(true);
 		} else {
@@ -1683,8 +1682,9 @@ void put_children_on_pq_and_set_ss_distance(int num_edges, int *edge_list, int b
 				continue;
 			}
 		}
-
-		PQ->push(node_ind, path_weight);
+		if (path_weight <= max_path_weight){
+			PQ->push(node_ind, path_weight);
+		}
 
 	}
 }
@@ -1699,7 +1699,9 @@ bool node_has_chance_to_reach_destination(int node_ind, int destx, int desty, in
 	int remaining_lower_bound;
 
 	//if (node_path_weight <= max_path_weight){
-	//	has_chance_to_reach = true;
+	//	return true;
+	//} else {
+	//	return false;
 	//}
 	int node_xlow, node_xhigh, node_ylow, node_yhigh;
 

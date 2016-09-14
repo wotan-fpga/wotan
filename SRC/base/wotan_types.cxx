@@ -47,7 +47,7 @@ User_Options::User_Options(){
 	/* length probabilities can be initialized from a file in the future, but for now set them
 	   to some default value */
 	this->length_probabilities.assign(20, 0);
-	this->length_probabilities[0] = 0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
+	this->length_probabilities[0] = 0.0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
 	this->length_probabilities[1] = 0.40;
 	this->length_probabilities[2] = 0.23;
 	this->length_probabilities[3] = 0.14;
