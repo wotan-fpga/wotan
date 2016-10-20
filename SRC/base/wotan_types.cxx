@@ -362,7 +362,7 @@ void RR_Node_Base::set_fan_in(short f){
 
 /* set node direction */
 void RR_Node_Base::set_direction(e_direction dir){
-	this->direction = direction;
+	this->direction = dir;
 }
 
 /*==== END RR_Node_Base Class ====*/
