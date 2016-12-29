@@ -4,8 +4,8 @@ from my_regex import *
 
 #write requirements of this script here
 
-
-arch_base = '/home/opetelin/wotan/arch'
+#arch_base = '/home/opetelin/wotan/arch'
+arch_base = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch'
 
 valid_switchblocks = ['wilton', 'universal', 'subset']
 valid_topologies = ['on-cb-off-cb',

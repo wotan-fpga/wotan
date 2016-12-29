@@ -1,7 +1,7 @@
 import os
 import time
 import numpy as np
-import wotan_tester as wt
+import run_benchmarks as wt
 
 ############ Paths ############
 base_path = '/nfs/ug/homes-4/k/kongnath/code'
@@ -46,8 +46,8 @@ regex_Rel = (
 
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -threads 10 -max_connection_length 8 -keep_path_count_history n'
-#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -threads 10 -max_connection_length 8 -keep_path_count_history n'
+wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
 #wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
 #wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
 
@@ -75,8 +75,9 @@ tester = wt.Wotan_Tester(
 ### Get absolute metric for a list of architecture points ###
 arch_list = wt.my_custom_archs_list()
 
+design_results_file = wotan_path + "/python/design_results.txt"
 tester.evaluate_architecture_list(arch_list, result_file, 
-                                  wotan_opts,
+                                  wotan_opts, design_results_file,
                                   vpr_arch_ordering = vpr_arch_ordering)	#change to [] if you want to run VPR comparisons.
 
 

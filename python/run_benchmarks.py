@@ -283,18 +283,15 @@ class Wotan_Tester:
 		#list of benchmark names
 		benchmarks = [
 			'bgm',
-			'blob_merge',
-			'boundtop',
-			'mkDelayWorker32B',
-			'LU8PEEng',
-			#'mcml',
-			#'stereovision2',
-			#'LU32PEEng',
-			'mkSMAdapter4B',
+			#'blob_merge',
+			#'boundtop',
+			#'mkDelayWorker32B',
+			#'LU8PEEng',
+			#'mkSMAdapter4B',
 			'or1200',
-			'raygentop',
-			'sha',
-			'stereovision0',
+			#'raygentop',
+			#'sha',
+			#'stereovision0',
 			'stereovision1'
 		]
 
@@ -318,9 +315,10 @@ class Wotan_Tester:
 	#this function basically calls 'run_vpr_benchmarks' for each seed in the list
 	def run_vpr_benchmarks_multiple_seeds(self, benchmark_list,
 	                                      regex_list, vpr_arch,
-					      vpr_seed_list = [1],	#by default run with single seed
-					      num_threads = 1):		#by default run with 1 thread
+					     				  vpr_seed_list = [1],
+					      				  num_threads = 1):
 		result_table = []
+		result_table_benchmarks = []
 
 		if num_threads > len(benchmark_list):
 			num_threads = len(benchmark_list)
@@ -328,13 +326,17 @@ class Wotan_Tester:
 		#run vpr benchmarks for each specified seed
 		for seed in vpr_seed_list:
 			print('SEED ' + str(seed) + ' of ' + str(len(vpr_seed_list)))
-			seed_result = self.run_vpr_benchmarks(benchmark_list, regex_list, vpr_arch,
+			seed_result, benchmark_results = self.run_vpr_benchmarks(benchmark_list, regex_list, vpr_arch,
 			                                      seed, num_threads = num_threads)
 
 			result_table += [seed_result]
+			result_table_benchmarks += [result_table_benchmarks]
 
 		#take average of all results
 		result_table = np.array(result_table)
+		result_table_benchmarks = np.array(result_table_benchmarks)
+
+		print ("Here:", result_table_benchmarks) # FIX NATHAN
 
 		avg_results = []
 		for column in result_table.T:
@@ -362,9 +364,10 @@ class Wotan_Tester:
 		#self.change_vpr_rr_struct_dump(self.vpr_path, enable=False)
 		self.make_vpr()
 
-		#create a temporary directory for each benchmark to store the vpr executable (otherwise many threads try to write to the same vpr output file)
+		#create a temporary directory for each benchmark to store the vpr executable (otherwise many threads
+		#try to write to the same vpr output file)
 		temp_dir = self.vpr_path + '/script_temp'
-		#cleanup temp directory if it already exists
+		# Cleanup temp directory if it already exists
 		if os.path.isdir(temp_dir):
 			self.run_command('rm', ['-r', temp_dir])
 
@@ -374,7 +377,7 @@ class Wotan_Tester:
 			print(err.output)
 			raise 
 
-		#multithread vpr runs
+		# Multithread VPR runs
 		iterables = []
 		for bm in benchmark_list:
 			index = benchmark_list.index(bm)
@@ -389,7 +392,7 @@ class Wotan_Tester:
 
 			arch_name = (arch_path.split('/'))[-1]
 			if 'xml' not in arch_name:
-				raise 'WTF'
+				raise "Incorrect architecture file."
 			new_arch_path = bm_dir + '/' + arch_name
 			new_vpr_path = bm_dir + '/vpr'
 
@@ -408,21 +411,24 @@ class Wotan_Tester:
 			sys.exit()
 
 		outputs = np.array(outputs)
-		
 
 		#return geomean for each column (?) in the outputs table
 		geomean_outputs = []
+		benchmark_results = []
 		for regex in regex_list:
 			ind = regex_list.index(regex)
 			benchmarks_result_list = outputs[:, ind].tolist()
 			for out in benchmarks_result_list:
-				print( '\t\tbenchmark %d routed at W=%d' % (benchmarks_result_list.index(out), int(out)) )
+				print( '\t\tBenchmark %d routed at W=%d' % (benchmarks_result_list.index(out), int(out)) )
 				sys.stdout.flush()
 
+			benchmark_results += [ benchmarks_result_list ]
 			geomean_outputs += [ get_geomean(benchmarks_result_list) ]
 
 
-		return geomean_outputs
+		print(benchmark_results) # NATHAN FIX
+		return geomean_outputs, benchmark_results
+
 
 	#runs specified vpr benchmark and returns regex'd outputs in a list
 	def run_vpr_benchmark(self, bm_info):
@@ -447,8 +453,6 @@ class Wotan_Tester:
 			vpr_out = str(self.run_command(vpr_path, arg_list))
 			#vpr_out = self.run_vpr(vpr_opts)
 		except KeyboardInterrupt:
-			#dealing with python 2.7 compatibility stupidness... i can't get multiprocessing to terminate on "ctrl-c"
-			#unless I write this try-except statement. and even then I have to bang on ctrl-c repeatedly to get the desired effect :(
 			print('worker received interrupt. exiting.')
 			return
 
@@ -460,10 +464,7 @@ class Wotan_Tester:
 
 		ind = benchmark_list.index(benchmark)
 		print('\t\tbenchmark: ' + str(ind) + ' done')
-		#print('\t\t\tvpr opts: ' + vpr_opts)
 		return output_list
-
-
 
 
 
@@ -577,46 +578,15 @@ class Wotan_Tester:
 
 	############ Test Suite Related ############
 	
-	#returns a 2-tuple containing a metric (based on target_regex) for each of the specified architectures.
-	#pin demand is calculated based on the first architecture (and the target/target_tolerance values) using a binary search.
-	#metric values for the two architectures are returned based on the aforementioned pin demand 
-	def wotan_arch_metrics_with_first_as_reference(self, arch_point1, arch_point2, target, target_tolerance, target_regex,
-	                                               wotan_opts, vpr_opts_arch1, vpr_opts_arch2):
-	
-		arch1_metric = None
-		arch2_metric = None
-
-		path_arch1 = arch_point1.get_wotan_arch_path()
-		path_arch2 = arch_point2.get_wotan_arch_path()
-
-		#get pin demand / routability based on first architecture
-		self.update_arch_based_on_arch_point(path_arch1, arch_point1)
-		self.run_vpr( vpr_opts_arch1 )
-		(arch1_metric, demand_mult, arch1_output) = self.search_for_wotan_demand_multiplier(wotan_opts = wotan_opts,
-											  test_type = self.test_type,
-											  target = target,
-											  target_tolerance = target_tolerance,
-											  target_regex = target_regex)
-
-		#now get the routability of the second architecture
-		self.update_arch_based_on_arch_point(path_arch2, arch_point2)
-		self.run_vpr( vpr_opts_arch2 )
-		arch2_output = self.run_wotan( wotan_opts + ' -demand_multiplier ' + str(demand_mult) )
-		arch2_metric = float( regex_last_token(arch2_output, target_regex) )
-
-		print (arch1_metric, arch2_metric)
-		return (arch1_metric, arch2_metric)
-
-
-	
-	#evaluates routability of each architecture point in the specified list (optionally runs VPR on this list as well).
-	#results are written in table form to the specified file
-	#	wotan results are sorted best to worst
-	#	VPR results, if enabled, are sorter best to worst (in terms on channel width)
+	# Evaluates routability of each architecture point in the specified list (optionally runs VPR on this list as well).
+	# Results are written in table form to the specified file
+	#	- Wotan results are sorted best to worst
+	#	- VPR results, if enabled, are sorter best to worst (in terms on channel width)
 	def evaluate_architecture_list(self, arch_list,
-	                                     results_file,
-					     wotan_opts,
-					     vpr_arch_ordering = []):	#if not [], wotan results will be compared against this ordering. otherwise vpr comparisons will be run too
+	                               results_file,
+					     		   wotan_opts,
+								   design_results_file,
+					     		   vpr_arch_ordering = []):
 
 		print ("Evaluating architecture list...")
 
@@ -638,9 +608,9 @@ class Wotan_Tester:
 		wotan_results = []
 		vpr_results = []
 
-		#for each architecture point:
-		#- evaluate with wotan 
-		#- evaluate with VPR if enabled
+		#For each architecture point:
+		# - Evaluate with Wotan 
+		# - Evaluate with VPR if enabled
 		for arch_point in arch_list:
 			arch_point_index = arch_list.index(arch_point)
 			print('Run ' + str(arch_point_index+1) + '/' + str(len(arch_list)) + '    arch is ' + arch_point.as_str() )
@@ -658,12 +628,13 @@ class Wotan_Tester:
 			for chanw in chan_widths:
 				print('W = ' + str(chanw))
 
-				#6LUT and 4LUT benchmarks are from different directories
 				benchmark = 'vtr_benchmarks_blif/sha.blif'
 				if arch_point.lut_size == 4:
 					benchmark = '4LUT_DSP_vtr_benchmarks_blif/sha.pre-vpr.blif'
 
-				vpr_opts = wotan_arch_path + ' ' + self.vtr_path + '/vtr_flow/benchmarks/' + benchmark + ' -nodisp -dump_rr_structs_file ./dumped_rr_structs.txt -pack -place -route_chan_width ' + str(chanw)
+				vpr_opts = wotan_arch_path + ' ' + self.vtr_path + '/vtr_flow/benchmarks/' + benchmark + \
+						   ' -nodisp -dump_rr_structs_file ./dumped_rr_structs.txt -pack -place -route_chan_width '\
+						   + str(chanw)
 				vpr_out = self.run_vpr( vpr_opts )
 
 				#run binary search to find pin demand at which the target_regex hits its target value 
@@ -674,8 +645,7 @@ class Wotan_Tester:
 												       target_regex = target_regex,
 												       demand_mult_high = 200)
 
-				#get metric used for evaluating the architecture
-				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'		#TODO: put this value into arch point info based on test suites? don't want to be hard-coding...
+				metric_regex = '.*Demand multiplier: (\d*\.*\d+).*'
 				metric_label = 'Demand Multiplier'
 				metric_value_list += [float(regex_last_token(wotan_out, metric_regex))]
 
@@ -689,15 +659,9 @@ class Wotan_Tester:
 			###### Evaluate architecture with VPR ######
 			if run_vpr_comparisons:
 				print ("Evaluating with vpr now...")
-				#what regex / benchmarks to run?
 				vpr_regex_list = ['channel width factor of (\d+)']
 				benchmarks = self.get_vtr_benchmarks(lut_size = arch_point.lut_size)
 
-				#run VPR and get regex results
-				#vpr_arch_path = arch_point.get_vpr_arch_path()
-				#self.update_arch_based_on_arch_point(vpr_arch_path, arch_point)
-
-				#TODO: each thread should be executing in its own directory. also, update architecture here?
 				results = self.run_vpr_benchmarks_multiple_seeds(benchmarks, vpr_regex_list, wotan_arch_path,
 										 vpr_seed_list = vpr_evaluation_seeds,
 										 num_threads = 10)
@@ -706,7 +670,7 @@ class Wotan_Tester:
 				vpr_result_entry = [arch_point_index, arch_point.as_str(), results[0]]
 				vpr_results += [vpr_result_entry]
 	
-		
+
 		#sort results -- descending for wotan, ascending for vpr
 		wotan_results.sort(key=lambda x: x[2], reverse=True)
 		vpr_results.sort(key=lambda x: x[2])
@@ -731,6 +695,9 @@ class Wotan_Tester:
 			print('caught exception:')
 			print(e)
 			print('continuing anyway')
+
+
+		# FIX NATHAN: ADD THE RESULTS OUTPUT FILE FOR ALL BENCHMARKS
 
 		#print results to a file
 		with open(results_file, 'w+') as f:
@@ -983,221 +950,16 @@ def my_custom_archs_list():
 	#k<LUT_size>   s<semi-global segment length>    g<global segment length>    <switchblock (universal/subset/wilton)>
         #                  topology-<interconect topology>       fcin<input Fc>     fcout<output Fc>
 
-
-	#### 100 random 6LUT architectures ####
-	#arch_strings += ['k6_s4_g8_universal_topology-on-cb-off-cb_fcin0.2_fcout0.05']
-	#arch_strings += ['k6_s4_wilton_topology-single-wirelength_fcin0.05_fcout0.05']
-	#arch_strings += ['k6_s2_wilton_topology-single-wirelength_fcin0.05_fcout0.2']
-	#arch_strings += ['k6_s2_subset_topology-single-wirelength_fcin0.2_fcout0.1']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cb-off-cb_fcin0.1_fcout0.1']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.1_fcout0.4']
-	#arch_strings += ['k6_s4_universal_topology-single-wirelength_fcin0.1_fcout0.05']
-	#arch_strings += ['k6_s4_universal_topology-single-wirelength_fcin0.6_fcout0.4']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-sb-off-sb_fcin0.4_fcout0.05']
-	#arch_strings += ['k6_s4_g8_wilton_topology-on-sb-off-sb_fcin0.4_fcout0.6']
-	#arch_strings += ['k6_s4_wilton_topology-single-wirelength_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s4_g16_wilton_topology-on-cbsb-off-cbsb_fcin0.6_fcout0.6']
-	#arch_strings += ['k6_s1_universal_topology-single-wirelength_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s4_g8_universal_topology-on-cb-off-sb_fcin0.1_fcout0.05']
-	#arch_strings += ['k6_s4_wilton_topology-single-wirelength_fcin0.4_fcout0.1']
-	#arch_strings += ['k6_s16_subset_topology-single-wirelength_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s8_universal_topology-single-wirelength_fcin0.4_fcout0.1']
-	#arch_strings += ['k6_s4_g4_wilton_topology-on-cb-off-sb_fcin0.4_fcout0.6']
-	#arch_strings += ['k6_s4_g4_subset_topology-on-cbsb-off-cbsb_fcin0.1_fcout0.1']
-	#arch_strings += ['k6_s16_wilton_topology-single-wirelength_fcin0.1_fcout0.1']
-	#arch_strings += ['k6_s4_g8_universal_topology-on-cbsb-off-cbsb_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s8_universal_topology-single-wirelength_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.1_fcout0.2']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.4_fcout0.1']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.6_fcout0.6']
-	#arch_strings += ['k6_s8_universal_topology-single-wirelength_fcin0.6_fcout0.1']
-	#arch_strings += ['k6_s1_subset_topology-single-wirelength_fcin0.2_fcout0.4']
-	#arch_strings += ['k6_s4_g16_subset_topology-on-cbsb-off-cbsb_fcin0.1_fcout0.05']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-sb-off-sb_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s4_g8_wilton_topology-on-cb-off-sb_fcin0.2_fcout0.05']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-cb-off-cb_fcin0.4_fcout0.05']
-	#arch_strings += ['k6_s4_wilton_topology-single-wirelength_fcin0.2_fcout0.2']
-	#arch_strings += ['k6_s1_subset_topology-single-wirelength_fcin0.2_fcout0.6']
-	#arch_strings += ['k6_s2_wilton_topology-single-wirelength_fcin0.2_fcout0.05']
-	#arch_strings += ['k6_s4_universal_topology-single-wirelength_fcin0.2_fcout0.6']
-	#arch_strings += ['k6_s2_subset_topology-single-wirelength_fcin0.05_fcout0.1']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.05_fcout0.2']
-	#arch_strings += ['k6_s1_universal_topology-single-wirelength_fcin0.4_fcout0.6']
-	#arch_strings += ['k6_s4_g8_wilton_topology-on-cbsb-off-cbsb_fcin0.6_fcout0.4']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cbsb-off-cbsb_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s4_subset_topology-single-wirelength_fcin0.6_fcout0.6']
-	#arch_strings += ['k6_s4_g4_wilton_topology-on-cb-off-cb_fcin0.2_fcout0.6']
-	#arch_strings += ['k6_s8_subset_topology-single-wirelength_fcin0.05_fcout0.2']
-	#arch_strings += ['k6_s16_subset_topology-single-wirelength_fcin0.2_fcout0.2']
-	#arch_strings += ['k6_s16_wilton_topology-single-wirelength_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.2_fcout0.4']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cb-off-cb_fcin0.1_fcout0.4']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-cbsb-off-cbsb_fcin0.05_fcout0.6']
-	#arch_strings += ['k6_s1_subset_topology-single-wirelength_fcin0.4_fcout0.1']
-	#arch_strings += ['k6_s1_wilton_topology-single-wirelength_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-cb-off-cbsb_fcin0.1_fcout0.2']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-cb-off-cbsb_fcin0.4_fcout0.6']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cbsb-off-cbsb_fcin0.2_fcout0.2']
-	#arch_strings += ['k6_s4_g4_wilton_topology-on-cb-off-sb_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s4_wilton_topology-single-wirelength_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s4_universal_topology-single-wirelength_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-cb-off-cb_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s4_g16_wilton_topology-on-sb-off-sb_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s4_g4_wilton_topology-on-sb-off-sb_fcin0.05_fcout0.05']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-cb-off-cbsb_fcin0.2_fcout0.05']
-	#arch_strings += ['k6_s2_wilton_topology-single-wirelength_fcin0.4_fcout0.2']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s4_subset_topology-single-wirelength_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s16_wilton_topology-single-wirelength_fcin0.4_fcout0.4']
-	#arch_strings += ['k6_s16_subset_topology-single-wirelength_fcin0.2_fcout0.4']
-	#arch_strings += ['k6_s4_g4_subset_topology-on-cb-off-sb_fcin0.2_fcout0.1']
-	#arch_strings += ['k6_s16_universal_topology-single-wirelength_fcin0.05_fcout0.05']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-sb-off-sb_fcin0.4_fcout0.05']
-	#arch_strings += ['k6_s4_g16_subset_topology-on-cb-off-cb_fcin0.4_fcout0.05']
-	#arch_strings += ['k6_s4_g4_universal_topology-on-cb-off-cbsb_fcin0.1_fcout0.4']
-	#arch_strings += ['k6_s8_subset_topology-single-wirelength_fcin0.2_fcout0.05']
-	#arch_strings += ['k6_s4_g8_universal_topology-on-cb-off-cb_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s4_g16_wilton_topology-on-cb-off-cbsb_fcin0.05_fcout0.2']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-sb-off-sb_fcin0.05_fcout0.6']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s4_g16_wilton_topology-on-cbsb-off-cbsb_fcin0.6_fcout0.2']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.1_fcout0.4']
-	#arch_strings += ['k6_s8_wilton_topology-single-wirelength_fcin0.05_fcout0.6']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-cb-off-cbsb_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s4_g4_subset_topology-on-sb-off-sb_fcin0.4_fcout0.4']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.2_fcout0.6']
-	#arch_strings += ['k6_s2_wilton_topology-single-wirelength_fcin0.1_fcout0.6']
-	#arch_strings += ['k6_s2_subset_topology-single-wirelength_fcin0.1_fcout0.05']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cb-off-cbsb_fcin0.2_fcout0.2']
-	#arch_strings += ['k6_s4_g8_wilton_topology-on-cb-off-sb_fcin0.6_fcout0.1']
-	#arch_strings += ['k6_s4_g16_universal_topology-on-cbsb-off-cbsb_fcin0.05_fcout0.05']
-	#arch_strings += ['k6_s4_universal_topology-single-wirelength_fcin0.4_fcout0.2']
-	#arch_strings += ['k6_s1_wilton_topology-single-wirelength_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s2_wilton_topology-single-wirelength_fcin0.1_fcout0.05']
-	#arch_strings += ['k6_s1_subset_topology-single-wirelength_fcin0.05_fcout0.4']
-	#arch_strings += ['k6_s4_g8_universal_topology-on-cbsb-off-cbsb_fcin0.05_fcout0.05']
-	#arch_strings += ['k6_s4_subset_topology-single-wirelength_fcin0.4_fcout0.4']
-	#arch_strings += ['k6_s4_g16_subset_topology-on-cb-off-cbsb_fcin0.4_fcout0.1']
-	#arch_strings += ['k6_s16_universal_topology-single-wirelength_fcin0.1_fcout0.4']
-	#arch_strings += ['k6_s1_subset_topology-single-wirelength_fcin0.6_fcout0.4']
-	#arch_strings += ['k6_s2_universal_topology-single-wirelength_fcin0.6_fcout0.1']
-	#arch_strings += ['k6_s4_g8_subset_topology-on-sb-off-sb_fcin0.6_fcout0.05']
-	#arch_strings += ['k6_s1_wilton_topology-single-wirelength_fcin0.2_fcout0.6']
-
-	#### 100 random 4LUT architectures ####
-#	arch_strings += ['k4_s2_g16_wilton_topology-on-cbsb-off-cbsb_fcin0.2_fcout0.4']
-#	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.3_fcout0.2']
-#	arch_strings += ['k4_s4_subset_topology-single-wirelength_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s1_universal_topology-single-wirelength_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s2_g8_wilton_topology-on-sb-off-sb_fcin0.1_fcout0.3']
-#	arch_strings += ['k4_s2_wilton_topology-single-wirelength_fcin0.2_fcout0.1']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cbsb-off-cbsb_fcin0.4_fcout0.4']
-#	arch_strings += ['k4_s2_universal_topology-single-wirelength_fcin0.1_fcout0.1']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-sb-off-sb_fcin0.1_fcout0.1']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cb-off-cbsb_fcin0.2_fcout0.2']
-#	arch_strings += ['k4_s8_wilton_topology-single-wirelength_fcin0.1_fcout0.1']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-sb-off-sb_fcin0.1_fcout0.3']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-sb-off-sb_fcin0.3_fcout0.4']
-#	arch_strings += ['k4_s8_wilton_topology-single-wirelength_fcin0.6_fcout0.1']
-#	arch_strings += ['k4_s2_universal_topology-single-wirelength_fcin0.6_fcout0.4']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cb-off-cbsb_fcin0.4_fcout0.3']
-#	arch_strings += ['k4_s4_subset_topology-single-wirelength_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s4_universal_topology-single-wirelength_fcin0.6_fcout0.1']
-#	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s2_wilton_topology-single-wirelength_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.6_fcout0.4']
-#	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s2_g4_universal_topology-on-sb-off-sb_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s1_universal_topology-single-wirelength_fcin0.6_fcout0.1']
-#	arch_strings += ['k4_s2_g8_subset_topology-on-cb-off-cbsb_fcin0.1_fcout0.2']
-#	arch_strings += ['k4_s2_g8_subset_topology-on-cb-off-sb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-sb-off-sb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s8_universal_topology-single-wirelength_fcin0.3_fcout0.2']
-#	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.2_fcout0.1']
-#	arch_strings += ['k4_s2_g4_universal_topology-on-cbsb-off-cbsb_fcin0.1_fcout0.6']
-#	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.6_fcout0.4']
-#	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.2_fcout0.3']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cb-off-sb_fcin0.3_fcout0.2']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cbsb-off-cbsb_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.2_fcout0.1']
-#	arch_strings += ['k4_s2_g4_wilton_topology-on-cb-off-sb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s2_universal_topology-single-wirelength_fcin0.3_fcout0.2']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s2_subset_topology-single-wirelength_fcin0.1_fcout0.6']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cb-off-cb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s4_subset_topology-single-wirelength_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.1_fcout0.4']
-#	arch_strings += ['k4_s8_universal_topology-single-wirelength_fcin0.3_fcout0.4']
-#	arch_strings += ['k4_s2_subset_topology-single-wirelength_fcin0.2_fcout0.3']
-#	arch_strings += ['k4_s1_universal_topology-single-wirelength_fcin0.1_fcout0.6']
-#	arch_strings += ['k4_s2_g4_wilton_topology-on-cb-off-sb_fcin0.6_fcout0.2']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-sb-off-sb_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.4_fcout0.6']
-#	arch_strings += ['k4_s4_subset_topology-single-wirelength_fcin0.6_fcout0.4']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-cbsb-off-cbsb_fcin0.3_fcout0.3']
-#	arch_strings += ['k4_s2_wilton_topology-single-wirelength_fcin0.3_fcout0.1']
-#	arch_strings += ['k4_s8_subset_topology-single-wirelength_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-sb-off-sb_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-cb-off-cb_fcin0.1_fcout0.2']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.2_fcout0.3']
-#	arch_strings += ['k4_s2_subset_topology-single-wirelength_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s4_universal_topology-single-wirelength_fcin0.4_fcout0.6']
-#	arch_strings += ['k4_s2_g8_subset_topology-on-cb-off-sb_fcin0.3_fcout0.1']
-#	arch_strings += ['k4_s2_g4_wilton_topology-on-cb-off-sb_fcin0.1_fcout0.6']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cb-off-cb_fcin0.3_fcout0.4']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cb-off-cb_fcin0.4_fcout0.2']
-#	arch_strings += ['k4_s8_wilton_topology-single-wirelength_fcin0.2_fcout0.3']
-#	arch_strings += ['k4_s2_universal_topology-single-wirelength_fcin0.1_fcout0.3']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-cb-off-sb_fcin0.1_fcout0.3']
-#	arch_strings += ['k4_s2_g4_wilton_topology-on-cb-off-cb_fcin0.4_fcout0.6']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.3_fcout0.3']
-#	arch_strings += ['k4_s2_g4_universal_topology-on-cb-off-sb_fcin0.3_fcout0.3']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cb-off-sb_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.1_fcout0.6']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cbsb-off-cbsb_fcin0.4_fcout0.4']
-#	arch_strings += ['k4_s8_subset_topology-single-wirelength_fcin0.1_fcout0.2']
-#	arch_strings += ['k4_s8_subset_topology-single-wirelength_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-sb-off-sb_fcin0.2_fcout0.3']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-cb-off-sb_fcin0.3_fcout0.3']
-#	arch_strings += ['k4_s1_universal_topology-single-wirelength_fcin0.6_fcout0.4']
-#	arch_strings += ['k4_s2_g16_subset_topology-on-cbsb-off-cbsb_fcin0.6_fcout0.6']
-#	arch_strings += ['k4_s2_g8_wilton_topology-on-cb-off-cb_fcin0.1_fcout0.1']
-#	arch_strings += ['k4_s2_g8_subset_topology-on-cbsb-off-cbsb_fcin0.3_fcout0.3']
-#	arch_strings += ['k4_s8_wilton_topology-single-wirelength_fcin0.1_fcout0.4']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-cb-off-cbsb_fcin0.2_fcout0.4']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-cb-off-sb_fcin0.1_fcout0.4']
-#	arch_strings += ['k4_s2_g8_wilton_topology-on-cbsb-off-cbsb_fcin0.3_fcout0.1']
-#	arch_strings += ['k4_s8_universal_topology-single-wirelength_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.4_fcout0.4']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-cb-off-cb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s2_g16_universal_topology-on-sb-off-sb_fcin0.1_fcout0.1']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cbsb-off-cbsb_fcin0.3_fcout0.6']
-#	arch_strings += ['k4_s4_subset_topology-single-wirelength_fcin0.4_fcout0.6']
-#	arch_strings += ['k4_s2_g8_wilton_topology-on-cb-off-sb_fcin0.2_fcout0.1']
-#	arch_strings += ['k4_s2_wilton_topology-single-wirelength_fcin0.2_fcout0.6']
-#	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.6_fcout0.3']
-#	arch_strings += ['k4_s2_wilton_topology-single-wirelength_fcin0.4_fcout0.4']
-#	arch_strings += ['k4_s1_universal_topology-single-wirelength_fcin0.4_fcout0.1']
-#	arch_strings += ['k4_s2_g16_wilton_topology-on-cb-off-sb_fcin0.1_fcout0.2']
-#	arch_strings += ['k4_s8_universal_topology-single-wirelength_fcin0.2_fcout0.1']
-#	arch_strings += ['k4_s2_g4_subset_topology-on-sb-off-sb_fcin0.3_fcout0.1']
-#	arch_strings += ['k4_s2_g8_universal_topology-on-cb-off-sb_fcin0.3_fcout0.1']
-#	arch_strings += ['k4_s4_wilton_topology-single-wirelength_fcin0.2_fcout0.2']
-#	arch_strings += ['k4_s8_wilton_topology-single-wirelength_fcin0.4_fcout0.2']
-
 #	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.6_fcout0.6']
 #	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.6_fcout0.6']
 #	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.2_fcout0.4']
 #	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.2_fcout0.4']
 #	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.4_fcout0.2']
 #	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.4_fcout0.2']
-	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.3_fcout0.2']
 #	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.3_fcout0.1']
 #	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.7_fcout0.2']
 #	arch_strings += ['k4_s1_wilton_topology-single-wirelength_fcin0.7_fcout0.2'] 
+	arch_strings += ['k4_s1_subset_topology-single-wirelength_fcin0.3_fcout0.2']
 
 	#build a list of arch points based on the arch strings
 	for arch_str in arch_strings:

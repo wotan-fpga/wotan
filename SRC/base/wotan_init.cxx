@@ -136,8 +136,10 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			}
 
 			if ( strcmp(argv[iopt], "VPR") == 0 ){
+				cout << "Analyzing VPR structs." << endl;
 				user_opts->rr_structs_mode = RR_STRUCTS_VPR;
 			} else if ( strcmp(argv[iopt], "simple") == 0 ){
+				cout << "Analyzing basic structs." << endl;
 				user_opts->rr_structs_mode = RR_STRUCTS_SIMPLE;
 			} else {
 				WTHROW(EX_INIT, "Unrecognized rr structs mode: " << argv[iopt]);

@@ -230,6 +230,7 @@ static void parse_rr_node_section(int num_rr_nodes, t_rr_node &rr_node, fstream 
 		rr_node[inode].set_C(C);
 		rr_node[inode].set_ptc_num(ptc_num);
 		rr_node[inode].set_fan_in(fan_in);
+
 		rr_node[inode].set_direction((e_direction)direction);
 
 
