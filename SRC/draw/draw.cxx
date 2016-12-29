@@ -336,6 +336,42 @@ static t_color get_node_color(int node_ind, t_rr_node &rr_node){
 	return color;
 }
 
+/**
+ * Draws a trangle with it's center at (xend, yend), and of length & width
+ * arrow_size, rotated such that it points in the direction
+ * of the directed line segment (x1, y1) -> (x2, y2).
+ *
+ * Note that the parameters are in a strange order
+ */
+void draw_triangle_along_line(
+	float xend, float yend, float x1, float x2, float y1, float y2, float arrow_size)
+{
+	float switch_rad = arrow_size/2;
+	float xdelta, ydelta;
+	float magnitude;
+	float xunit, yunit;
+	float xbaseline, ybaseline;
+	t_point poly[3];
+
+	xdelta = x2 - x1;
+	ydelta = y2 - y1;
+	magnitude = sqrt(xdelta * xdelta + ydelta * ydelta);
+
+	xunit = xdelta / magnitude;
+	yunit = ydelta / magnitude;
+
+	poly[0].x = xend + xunit * switch_rad;
+	poly[0].y = yend + yunit * switch_rad;
+	xbaseline = xend - xunit * switch_rad;
+	ybaseline = yend - yunit * switch_rad;
+	poly[1].x = xbaseline + yunit * switch_rad;
+	poly[1].y = ybaseline - xunit * switch_rad;
+	poly[2].x = xbaseline - yunit * switch_rad;
+	poly[2].y = ybaseline + xunit * switch_rad;
+
+	fillpoly(poly, 3);
+}
+
 /* draws the wire for the specified chanx/chany node */
 static void draw_rr_chan(int node_ind, int track_index, t_color node_color, e_rr_type node_type){
 	
@@ -375,4 +411,14 @@ static void draw_rr_chan(int node_ind, int track_index, t_color node_color, e_rr
 	setlinewidth(3);
 	setcolor(node_color);
 	drawline(x1, y1, x2, y2);	
+
+	// Nathan
+	int wire_direction = rr_node[node_ind].get_direction();
+	//if (wire_direction != -1)
+	//	std::cout << "Wire direction: " << wire_direction << std::endl;
+	if (wire_direction == 1)
+		draw_triangle_along_line(x2, y2, x1, x2, y1, y2, 0.8);
+	else if (wire_direction == 0)
+		draw_triangle_along_line(x1, y1, x2, x1, y2, y1, 0.8);
 }
+

@@ -48,7 +48,7 @@ void cutline_node_popped_func(int popped_node, int from_node_ind, int to_node_in
 }
 
 /* Called when topological traversal is iterateing over a node's children */
-bool cutline_child_iterated_func(int parent_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
+bool cutline_child_iterated_func(int parent_ind, int parent_edge_ind, int node_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
                           e_traversal_dir traversal_dir, int max_path_weight, int from_node_ind, int to_node_ind, User_Options *user_opts, void *user_data){
 
 	bool ignore_node = false;

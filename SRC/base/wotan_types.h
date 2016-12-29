@@ -55,6 +55,7 @@ enum e_traversal_dir{
 	BACKWARD_TRAVERSAL
 };
 
+
 /* specifies what form the contents of the rr structs file (parsed in during initialization) are expected to take 
 	RR_STRUCTS_VPR -- dumped routing resource structs from VPR. Should include lists of:
 			- rr nodes
@@ -82,6 +83,29 @@ enum e_bucket_mode{
 	BY_PATH_HOPS
 };
 
+
+/* specifies the mode to use to deal with self-congestion effects.
+   Demands contributed by path enumeration from a source to a sink will be taken into
+   account during routing probability analysis if they are not somehow discounted. For example, 
+   if the output pin had a demand of 1.0, all connections evaluated from the associated source to
+   a target sink will have a routing probability of 0 unless the demand contributed to that pin
+   by the source is discounted.
+   
+   Methods to deal with self-congestion:
+   	MODE_NONE -- do nothing
+	MODE_RADIUS: 
+		Each source (sink) keeps track of demands contributed to nearby nodes within some specified Manhattan distance.
+		These demands can then be discounted when analyzing probability from that source (to that sink).
+	MODE_PATH_DEPENDENCE:
+		This is a more complicated (but more accurate) method to keep track of self congestion. Essentially,
+		a node v keeps track of demands contributed to it by its children U. If, while propagating routing
+		probabilities, we traverse from u to v, the demands contributed to v by u should be discounted
+		(since this congestion has already been accounted for when calculating the probability of reaching u). */
+enum e_self_congestion_mode{
+	MODE_NONE = 0,
+	MODE_RADIUS,
+	MODE_PATH_DEPENDENCE
+};
 
 
 /**** Forward Declarations ****/
@@ -135,13 +159,16 @@ public:
 	e_rr_structs_mode rr_structs_mode;	/* Wotan's routing structures are read-in according to this mode */
 	std::string rr_structs_file;		/* path to file from which rr structures are to be read */
 	int max_connection_length;		/* maximum connection length to be considered during path enumeration */
-	bool keep_path_count_history;		/* routing nodes will keep track of path counts from adjacent sources/sinks. adds accuracy to probability analysis */
 	bool analyze_core;			/* reachability analysis will only be performed for a core region of the FPGA */ //TODO: defined as what?
 
 	float use_routing_node_demand;		/* if not UNDEFINED, then demand for routing nodes (CHANX/CHANY) will be considered to be whatever is specified here.
 						   demand for all non-routing nodes will be considered to be 0 */
 
 	int num_threads;			/* number of threads to use for path enumeration & probability analysis */
+
+	float target_reliability; 		/* if not UNDEFINED, Wotan will search for a demand multiplier that results in the specified value of reliability */
+
+	e_self_congestion_mode self_congestion_mode;	/* method for dealing with self-congestion effects. see comment on enum */
 
 	double ipin_probability;
 	double opin_probability;
@@ -212,6 +239,7 @@ private:
 public:
 
 	RR_Node_Base();
+	RR_Node_Base(const RR_Node_Base &obj);
 
 	int *out_edges;					/* a list of rr nodes *to* which this node connects [0..get_num_out_edges()-1] */
 	short *out_switches;				/* a list of switches which are used by the edges emanating from this node */
@@ -229,6 +257,7 @@ public:
 	short get_ylow() const;				/* get low y coordinate of this node */
 	short get_xhigh() const;			/* get high x coordinate of this node */
 	short get_yhigh() const;			/* get high y coordinate of this node */
+	short get_span() const;				/* how many logic blocks does this node span? */
 	float get_R() const;				/* get node resistance */
 	float get_C() const;				/* get node capacitance */
 	short get_ptc_num() const;			/* get the pin-track-class number of this node */
@@ -252,10 +281,9 @@ public:
 class RR_Node : public RR_Node_Base {
 private:
 	short num_in_edges;				/* number of edges linking into this node */
-	short weight;					/* weight of this node */
+	float weight;					/* weight of this node */
 	double demand;					/* fractional demand for this node. used for routability analysis */
 
-	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
 	
 
 	/* each node keeps track of the number of paths from/to all nearby sources/sinks that are within the 
@@ -279,7 +307,6 @@ private:
 	   this variable marks the index of the corresponding virtual source. */
 	int virtual_source_node_ind;
 
-	pthread_mutex_t my_mutex;
 
 protected:
 	/* Increments + returns path count history, or simply returns path count history
@@ -287,7 +314,13 @@ protected:
 	float access_path_count_history(float increment_val, RR_Node &target_node, bool increment);
 
 public:
+	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
+	int num_child_demand_buckets;
+	pthread_mutex_t my_mutex;
+
 	RR_Node();
+	~RR_Node();
+	RR_Node(const RR_Node &obj);
 
 	bool highlight;
 
@@ -295,26 +328,33 @@ public:
 	int *in_edges;					/* a list of rr nodes *from* which this node receives connections [0..get_num_in_edges()-1] */
 	short *in_switches;				/* a list of switches which are used by the edges linking into this node */
 
+	//TODO: make this float if possible
+	/* keeps track of demand contributes from each of the children, for each of the possible path lengths
+	   That is, this array has dimensions [0..num_children-1][0..num_child_demand_buckets-1]  where num_buckets.
+	   This is used to account for self-congestion effects if the corresponding self-congestion mode is selected (see e_self_congestion_mode enum) */
+	float **child_demand_contributions;
+
 
 	/* allocator functions */
 	void alloc_in_edges_and_switches(short);
-
 	void alloc_source_sink_path_history(int num_lb_sources_and_sinks);
+	void alloc_child_demand_contributions(int max_path_weight);
 
-	/* freeing functions */
+	/* free functions */
 	void free_in_edges_and_switches();
 	void free_allocated_members();
+	void free_child_demand_contributions();
 
 	/* set methods */
 	void clear_demand();
-	void increment_demand(double);
+	void increment_demand(double increment, float demand_multiplier);
 	void set_virtual_source_node_ind(int);
-	void set_weight();
+	void set_weight(float demand_multiplier);
 
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
-	short get_weight() const;
+	float get_weight() const;
 	int get_virtual_source_node_ind() const;
 
 	/* increments path count history at this node due to the specified target node.
@@ -588,9 +628,10 @@ public:
 
 	Node_Buckets();
 	Node_Buckets(int max_path_weight_bound);	/* allocates source/sink buckets based on the maximum path weight bound specified */
+	~Node_Buckets();
 
-	float *source_buckets;
-	float *sink_buckets;
+	double *source_buckets;
+	double *sink_buckets;
 
 	/* allocator methods */
 	void alloc_source_sink_buckets(int set_num_source_buckets, int set_num_sink_buckets);
@@ -639,11 +680,18 @@ protected:
 	/* returns number of legal nodes on specified edge list */
 	short get_num_legal_nodes(int *edge_list, int num_edges, t_rr_node &rr_node, t_ss_distances &ss_distances, int max_path_weight);
 public:
-	
+	pthread_mutex_t my_mutex;
+
 	Node_Topological_Info();
+	~Node_Topological_Info();
 
 	/* used to limit which paths are considered during topological path enumeration, based on path weight */
 	Node_Buckets buckets;
+
+	/* used to discount demand contributed to this node by parents for the current s-t connection.
+	   during path propagation, each parent makes a note of how much demand they have contributed to this node
+	   for paths of a given length */
+	std::vector<double> demand_discounts;
 
 	/* keeps info that is essential for accessing the corresponding node on a set structure used for breaking cycles */
 	Node_Waiting node_waiting_info;

@@ -62,7 +62,7 @@ static double sperner_bound_on_lower_coefficient(Poly_Coeff higher_cardinality_c
 
 /* computes the reliability polynomial based on the sink node buckets (which contain the number of paths of each length from source to sink) */
 double analyze_reliability_polynomial(int source_sink_hops, 		// # hops (edges) from source to sink
-				     float *path_counts, 		// # paths at each cardinality of hops (edges)
+				     double *path_counts, 		// # paths at each cardinality of hops (edges)
 				     int num_path_count_entries, 	// # entries in above array
 				     int num_routing_nodes, 		// # routing nodes in subgraph
 				     float routing_node_probability){	// probability (of operation) to be used for each routing node

@@ -46,10 +46,6 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 			t_usr_child_iterated_func usr_exec_child_iterated,
 			t_usr_traversal_done_func usr_exec_traversal_done){
 
-	int node_ind;
-	int *edge_list;
-	int num_edges;
-
 	/* a queue for traversing the graph */
 	queue<int> Q;
 	
@@ -79,6 +75,10 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 
 	/* now use queue to traverse the graph */
 	while ( !Q.empty() ){
+		int node_ind;
+		int *edge_list;
+		int num_edges;
+
 		node_ind = Q.front();
 		Q.pop();
 
@@ -106,6 +106,10 @@ void do_topological_traversal(int from_node_ind, int to_node_ind, t_rr_node &rr_
 		if (Q.empty() && !nodes_waiting.empty()){
 			/* encountered a cycle somewhere. get first node from the sorted nodes_waiting structure and continue expanding
 			   on that */
+			if (nodes_waiting.empty()){
+				WTHROW(EX_PATH_ENUM, "Nodes waiting queue empty!");
+			}
+
 			Node_Waiting node_waiting = (*nodes_waiting.begin());
 			nodes_waiting.erase(node_waiting);
 
@@ -160,7 +164,7 @@ static void put_children_on_queue_and_update_structs(int *edge_list, int num_nod
 		/* EXECUTE USER-DEFINED FUNCTION */
 		bool ignore_node = false;
 		if (usr_exec_child_iterated != NULL){
-			ignore_node = usr_exec_child_iterated(parent_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, 
+			ignore_node = usr_exec_child_iterated(parent_ind, inode, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, 
 			                                     max_path_weight, from_node_ind, to_node_ind, user_opts, user_data);
 		}
 		if (ignore_node){

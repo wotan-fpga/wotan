@@ -6,6 +6,7 @@
 
 using namespace std;
 
+
 /* this has to exactly match e_rr_type */
 const string g_rr_type_string[NUM_RR_TYPES]{
 	"SOURCE",
@@ -30,10 +31,13 @@ User_Options::User_Options(){
 	this->rr_structs_mode = RR_STRUCTS_UNDEFINED;
 	this->num_threads = 1;
 	this->max_connection_length = 3;
-	this->keep_path_count_history = true;
 	this->analyze_core = true;
 
 	this->use_routing_node_demand = UNDEFINED;
+
+	this->target_reliability = UNDEFINED;
+
+	this->self_congestion_mode = MODE_PATH_DEPENDENCE;
 
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */
@@ -43,8 +47,8 @@ User_Options::User_Options(){
 
 	/* length probabilities can be initialized from a file in the future, but for now set them
 	   to some default value */
-	this->length_probabilities.assign(12, 0);
-	this->length_probabilities[0] = 0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
+	this->length_probabilities.assign(20, 0);
+	this->length_probabilities[0] = 0.0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
 	this->length_probabilities[1] = 0.40;
 	this->length_probabilities[2] = 0.23;
 	this->length_probabilities[3] = 0.14;
@@ -54,19 +58,13 @@ User_Options::User_Options(){
 	this->length_probabilities[7] = 0.025;
 	this->length_probabilities[8] = 0.015;
 	this->length_probabilities[9] = 0.01;
-
-	//this->length_probabilities[0] = 0;	//TODO, shouldn't really be 0 because we can have feedback paths internal to a logic block (from sources to sinks)
-	//this->length_probabilities[1] = 0.4;
-	//this->length_probabilities[2] = 0;
-	//this->length_probabilities[3] = 0.25;
-	//this->length_probabilities[4] = 0;
-	//this->length_probabilities[5] = 0.15;
-	//this->length_probabilities[6] = 0;
-	//this->length_probabilities[7] = 0.1;
-	//this->length_probabilities[8] = 0;
-	//this->length_probabilities[9] = 0.05;
-	//this->length_probabilities[10] = 0;
-	//this->length_probabilities[11] = 0.05;
+	this->length_probabilities[10] = 0.008;
+	this->length_probabilities[11] = 0.008;
+	this->length_probabilities[12] = 0.006;
+	this->length_probabilities[13] = 0.005;
+	this->length_probabilities[14] = 0.004;
+	this->length_probabilities[15] = 0.003;
+	this->length_probabilities[16] = 0.003;
 }
 /*==== END User Options Class ====*/
 
@@ -161,7 +159,7 @@ void Analysis_Settings::alloc_and_set_test_tile_coords(Arch_Structs *arch_struct
 int Analysis_Settings::get_max_path_weight(int conn_length){
 	/* this is a provisional scheme; will probably change later. but for now will set max
 	   path weight to give some flexibility in enumerating paths of the connection */
-	int max_path_weight = 15 + conn_length*1.3;
+	int max_path_weight = 15 + conn_length*1.3;	//XXX why does increasing max path weight lead to better results when 100% of connections are still being enumerated???
 	return max_path_weight;
 }
 /*==== END Analysis_Settings Class ====*/
@@ -184,19 +182,50 @@ RR_Node_Base::RR_Node_Base(){
 	this->out_switches = NULL;
 }
 
+RR_Node_Base::RR_Node_Base(const RR_Node_Base &obj){
+
+	this->type = obj.get_rr_type();
+	this->xlow = obj.get_xlow();
+	this->ylow = obj.get_ylow();
+	this->span = obj.get_span();
+	this->R = obj.get_R();
+	this->C = obj.get_C();
+	this->ptc_num = obj.get_ptc_num();
+	this->fan_in = obj.get_fan_in();
+	this->num_out_edges = obj.get_num_out_edges();
+	this->direction = obj.get_direction();
+
+	this->alloc_out_edges_and_switches(obj.num_out_edges);
+
+	for (int iedge = 0; iedge < obj.num_out_edges; iedge++){
+		this->out_edges[iedge] = obj.out_edges[iedge];
+		this->out_switches[iedge] = obj.out_switches[iedge];
+	}
+}
+
 /* frees allocated members */
 void RR_Node_Base::free_allocated_members(){
-	delete [] this->out_edges;
-	delete [] this->out_switches;
+	//XXX this wont work with virtual sources without copy constructors
+
+	if (!this->out_edges)
+		delete [] this->out_edges;
+	if (!this->out_switches)
+		delete [] this->out_switches;
 	this->out_edges = NULL;
 	this->out_switches = NULL;
 }
 
 /* Allocates edge array and switch array, and sets num_out_edges */
 void RR_Node_Base::alloc_out_edges_and_switches(short n_edges){
-	this->out_edges = new int[n_edges];
-	this->out_switches = new short[n_edges];
-	this->num_out_edges = n_edges;
+	if (n_edges > 0){
+		this->out_edges = new int[n_edges];
+		this->out_switches = new short[n_edges];
+		this->num_out_edges = n_edges;
+	} else {
+		this->out_edges = NULL;
+		this->out_switches = NULL;
+		this->num_out_edges = UNDEFINED;
+	}
 }
 
 /* get the rr type of this node */
@@ -240,6 +269,12 @@ short RR_Node_Base::get_yhigh() const{
 		yhigh = this->ylow;
 	}
 	return yhigh;
+}
+
+
+/* how many logic blocks does this node span? */
+short RR_Node_Base::get_span() const{
+	return this->span;
 }
 
 /* get node resistance */
@@ -328,7 +363,7 @@ void RR_Node_Base::set_fan_in(short f){
 
 /* set node direction */
 void RR_Node_Base::set_direction(e_direction dir){
-	this->direction = direction;
+	this->direction = dir;
 }
 
 /*==== END RR_Node_Base Class ====*/
@@ -351,18 +386,56 @@ RR_Node::RR_Node(){
 	pthread_mutex_init(&this->my_mutex, NULL);
 
 	this->highlight = false;
+
+	this->source_sink_path_history = NULL;
+
+	this->num_child_demand_buckets = UNDEFINED;
+	this->child_demand_contributions = NULL;
+}
+
+RR_Node::~RR_Node(){
+	this->free_allocated_members();
+	pthread_mutex_destroy(&this->my_mutex);
+}
+
+RR_Node::RR_Node(const RR_Node &obj) : RR_Node_Base(obj){
+
+	this->num_in_edges = obj.get_num_in_edges();
+	this->weight = obj.get_weight();
+	this->demand = obj.get_demand(NULL);
+	this->num_lb_sources_and_sinks = obj.num_lb_sources_and_sinks;
+	this->virtual_source_node_ind = obj.get_virtual_source_node_ind();
+	this->num_child_demand_buckets = obj.num_child_demand_buckets;
+	pthread_mutex_init(&this->my_mutex, NULL);
+	this->highlight = obj.highlight;
+
+	//TODO: copy over source-sink path history if you still want to use that
+	this->path_count_history_radius = UNDEFINED;
+
+	this->alloc_in_edges_and_switches(obj.num_in_edges);
+
+	for (int iedge = 0; iedge < obj.num_in_edges; iedge++){
+		this->in_edges[iedge] = obj.in_edges[iedge];
+		this->in_switches[iedge] = obj.in_switches[iedge];
+	}
 }
 
 /* allocate the in_edges and in_switches array and sets num_in_edges */
 void RR_Node::alloc_in_edges_and_switches(short n_edges){
-	this->in_edges = new int[n_edges];
-	this->in_switches = new short[n_edges];
-	this->num_in_edges = n_edges;
+	if (n_edges > 0){
+		this->in_edges = new int[n_edges];
+		this->in_switches = new short[n_edges];
+		this->num_in_edges = n_edges;
+	} else {
+		this->in_edges = NULL;
+		this->in_switches = NULL;
+		this->num_in_edges = UNDEFINED;
+	}
 }
 
 /* allocate source/sink path history structure */
 void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
-	int history_radius = 3;
+	int history_radius = 0;		//TODO: this should really be a command line option that makes its way to this function!!!
 	e_rr_type rr_type = this->get_rr_type();
 
 	/* want to only keep path count history for opin/ipin/chanx/chany */
@@ -396,10 +469,52 @@ void RR_Node::alloc_source_sink_path_history(int set_num_lb_sources_and_sinks){
 	}
 }
 
+void RR_Node::alloc_child_demand_contributions(int max_path_weight){
+
+	if (this->num_child_demand_buckets != UNDEFINED){
+		//this->free_child_demand_contributions();
+		//WTHROW(EX_INIT, "Node's child demand contributions structure has already been allocated!");
+		//XXX. should not be allocating again. fix this.
+		return;
+	}
+
+	if (this->get_num_out_edges() <= 0){
+		return;
+	}
+
+	this->child_demand_contributions = new float* [this->get_num_out_edges()];
+
+	/* allocate "max_path_weight" buckets for each outgoing edge */
+	for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
+		this->child_demand_contributions[iedge] = new float [max_path_weight+1];
+		for (int ibucket = 0; ibucket < max_path_weight+1; ibucket++){
+			this->child_demand_contributions[iedge][ibucket] = 0.0;
+		}
+	}
+
+	this->num_child_demand_buckets = max_path_weight+1;
+
+}
+
+void RR_Node::free_child_demand_contributions(){
+	if (this->num_child_demand_buckets != UNDEFINED){
+		for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
+			delete [] this->child_demand_contributions[iedge];
+		}
+
+		delete [] this->child_demand_contributions;
+		this->child_demand_contributions = NULL;
+
+		this->num_child_demand_buckets = UNDEFINED;
+	}
+}
+
 /* freen in-edges and switches */
 void RR_Node::free_in_edges_and_switches(){
-	delete [] this->in_edges;
-	delete [] this->in_switches;
+	if (!this->in_edges)
+		delete [] this->in_edges;
+	if (!this->in_switches)
+		delete [] this->in_switches;
 	this->in_edges = NULL;
 	this->in_switches = NULL;
 
@@ -413,6 +528,7 @@ void RR_Node::free_allocated_members(){
 
 	/* free edges and switches structures */
 	this->free_in_edges_and_switches();
+	this->free_child_demand_contributions();
 
 	/* free path count history structure */
 	if (this->path_count_history_radius > 0){
@@ -442,25 +558,32 @@ void RR_Node::clear_demand(){
 }
 
 /* increment node demand by specified value */
-void RR_Node::increment_demand(double value){
+void RR_Node::increment_demand(double value, float demand_multiplier){
 	pthread_mutex_lock(&this->my_mutex);
 	this->demand += value;
+	this->set_weight(demand_multiplier);
 	pthread_mutex_unlock(&this->my_mutex);
 }
 
 /* sets weight of this node */
-void RR_Node::set_weight(){
+void RR_Node::set_weight(float demand_multiplier){
 	/* weight of node is its wirelength usage */
-	short x_low, y_low, x_high, y_high;
-	x_low = this->get_xlow();
-	y_low = this->get_ylow();
-	x_high = this->get_xhigh();
-	y_high = this->get_yhigh();
+	//short x_low, y_low, x_high, y_high;
+	//x_low = this->get_xlow();
+	//y_low = this->get_ylow();
+	//x_high = this->get_xhigh();
+	//y_high = this->get_yhigh();
 
-	short my_weight = (x_high - x_low) + (y_high - y_low);
+	//float my_weight = (float)(x_high - x_low) + (y_high - y_low);
+	//if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
+	//	my_weight += 1.0;
+	//}
 
+
+	float my_weight = 0.0;
 	if (this->get_rr_type() == CHANX || this->get_rr_type() == CHANY){
-		my_weight++;
+		my_weight = 1.0 + min(this->demand*demand_multiplier, 1.0)*((float)this->get_span());// + 1.0);
+		my_weight = ceil(my_weight);
 	}
 	
 	this->weight = my_weight;
@@ -475,9 +598,13 @@ void RR_Node::set_virtual_source_node_ind(int node_ind){
 double RR_Node::get_demand(User_Options *user_opts) const{
 	double return_value;
 
+	if (user_opts == NULL){
+		return this->demand;
+	}
+
 	if (user_opts->use_routing_node_demand <= 0){
 		/* return demand recorded at this node */
-		return_value = this->demand;
+		return_value = this->demand * user_opts->demand_multiplier;
 	} else {
 		/* user has specified that a specific demand be used for routing nodes (those of CHANX/CHANY type) */
 		e_rr_type rr_type = this->get_rr_type();
@@ -497,8 +624,11 @@ short RR_Node::get_num_in_edges() const{
 }
 
 /* returns weight of this node */
-short RR_Node::get_weight() const{
-	return this->weight;
+float RR_Node::get_weight() const{
+	//pthread_mutex_lock(&this->my_mutex);
+	float _weight = this->weight;
+	//pthread_mutex_unlock(&this->my_mutex);
+	return _weight;
 }
 
 /* returns index of virtual source node corresponding to this node */
@@ -975,7 +1105,7 @@ void Routing_Structs::init_rr_node_weights(){
 	int num_nodes = this->get_num_rr_nodes();
 	
 	for (int inode = 0; inode < num_nodes; inode++){
-		this->rr_node[inode].set_weight();
+		this->rr_node[inode].set_weight(1.0);
 	}
 }
 
@@ -1183,6 +1313,17 @@ bool Node_Waiting::operator < (const Node_Waiting &obj) const{
 Node_Buckets::Node_Buckets(){
 	this->num_source_buckets = UNDEFINED;
 	this->num_sink_buckets = UNDEFINED;
+	this->source_buckets = NULL;
+	this->sink_buckets = NULL;
+}
+
+Node_Buckets::~Node_Buckets(){
+	delete [] this->source_buckets;
+	delete [] this->sink_buckets;
+	this->source_buckets = NULL;
+	this->sink_buckets = NULL;
+	this->num_source_buckets = UNDEFINED;
+	this->num_sink_buckets = UNDEFINED;
 }
 
 Node_Buckets::Node_Buckets(int max_path_weight_bound){
@@ -1198,8 +1339,8 @@ void Node_Buckets::alloc_source_sink_buckets(int set_num_source_buckets, int set
 		WTHROW(EX_INIT, "number of source and sink buckets is expected to be equal");
 	}
 
-	this->source_buckets = new float[set_num_source_buckets];
-	this->sink_buckets = new float[set_num_sink_buckets];
+	this->source_buckets = new double[set_num_source_buckets];
+	this->sink_buckets = new double[set_num_sink_buckets];
 
 	/* initialize to 0 */
 	for (int ibucket = 0; ibucket < set_num_source_buckets; ibucket++){
@@ -1276,6 +1417,10 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 	float incremental_sink_paths = 0;
 	int next_j = my_node_weight + 1;
 
+	if (next_j >= this->num_sink_buckets){
+		WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
+	}
+
 	for (int j = 0; j < next_j; j++){
 		if (this->sink_buckets[j] != UNDEFINED){
 			incremental_sink_paths += this->sink_buckets[j];
@@ -1283,6 +1428,13 @@ float Node_Buckets::get_num_paths(int my_node_weight, int my_dist_to_source, int
 	}
 
 	for (int i = max_path_weight; i >= my_dist_to_source; i--){
+		if (next_j >= this->num_sink_buckets){
+			WTHROW(EX_PATH_ENUM, "Out of bounds: " << " next_j: " << next_j << " sink_buckets: " << this->num_sink_buckets);
+		}
+		if (i >= this->num_source_buckets){
+			WTHROW(EX_PATH_ENUM, "Out of bounds: " << " i: " << i << " source_buckets: " << this->num_source_buckets);
+		}
+
 		if (this->source_buckets[i] != UNDEFINED){
 			paths_through_node += this->source_buckets[i] * incremental_sink_paths;
 		}
@@ -1324,6 +1476,11 @@ float Node_Buckets::get_probability_not_reachable(int my_node_weight, float my_n
 /*==== Node_Topological_Info Class ====*/
 Node_Topological_Info::Node_Topological_Info(){
 	this->clear();
+	pthread_mutex_init(&this->my_mutex, NULL);
+}
+
+Node_Topological_Info::~Node_Topological_Info(){
+	pthread_mutex_destroy(&this->my_mutex);
 }
 
 /* resets variables. does not deallocate node buckets structure (only clears contents) */
@@ -1341,6 +1498,10 @@ void Node_Topological_Info::clear(){
 
 	this->node_waiting_info.clear();
 	this->buckets.clear();
+
+	for (int ibucket = 0; ibucket < (int)this->demand_discounts.size(); ibucket++){
+		this->demand_discounts[ibucket] = 0.0;
+	}
 }
 
 /* sets whether this node has has already been placed onto expansion queue for a traversal from source */
