@@ -1,6 +1,6 @@
 ################################   MAKEFILE OPTIONS     ####################################
 
-ENABLE_GRAPHICS = true
+ENABLE_GRAPHICS = false
 
 COMPILER = g++
 
