@@ -23,7 +23,7 @@ using namespace std;
 /**** Function Declarations ****/
 /* propagates path counts stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
-			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode);
+			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode, e_self_congestion_mode self_congestion_mode);
 
 
 /**** Function Definitions ****/
@@ -44,7 +44,7 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			float demand_contribution = node_topo_inf[popped_node].buckets.get_num_paths(node_weight, dist_to_source, max_path_weight);
 
 			/* apply the demand multiplier to this node if it is not of type OPIN/IPIN/SOURCE/SINK */
-			//XXX: commenting this because I want to apply it when we actually use the demand, not when we set it
+			//commenting this because I want to apply it when we actually use the demand, not when we set it
 			//if (node_type != OPIN /*&& node_type != IPIN*/){
 			//	demand_contribution *= user_opts->demand_multiplier;
 			//}
@@ -54,7 +54,7 @@ void enumerate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 			   nearby nodes. This path count history can be used to later subtract the demand due to a source/sink pair
 			   (from nodes being traversed) when analyzing *that specific* source sink pair. Here we make a record
 			   of this node's demand that is due to this source/sink pair */
-			if (user_opts->keep_path_count_history){
+			if (user_opts->self_congestion_mode == MODE_RADIUS){
 				e_rr_type type = rr_node[popped_node].get_rr_type();
 				if (type == OPIN || type == IPIN || type == CHANX || type == CHANY){
 					rr_node[popped_node].increment_path_count_history(demand_contribution, rr_node[from_node_ind]);
@@ -91,7 +91,8 @@ bool enumerate_child_iterated_func(int parent_ind, int parent_edge_ind, int node
 	//	cout << "from: " << from_node_ind << "  to: " << to_node_ind << endl;
 	//	cout << "child: " << node_ind << "  parent: " << parent_ind << endl;
 	//}
-	propagate_path_counts(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight, enumerate_structs->mode);
+	propagate_path_counts(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight, enumerate_structs->mode,
+	                      user_opts->self_congestion_mode);
 
 	//if (from_node_ind == 5784 && to_node_ind == 6950){
 	//	cout << parent_ind << " to " << node_ind << endl;
@@ -110,7 +111,7 @@ void enumerate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 
 /* propagates path counts stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
-			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode){
+			e_traversal_dir traversal_dir, int max_path_weight, e_bucket_mode enumerate_mode, e_self_congestion_mode self_congestion_mode){
 
 	if (enumerate_mode != BY_PATH_WEIGHT && enumerate_mode != BY_PATH_HOPS){
 		WTHROW(EX_PATH_ENUM, "Unknown enumeration mode: " << enumerate_mode);
@@ -179,10 +180,6 @@ static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child
 			continue;
 		}
 
-		//if (enumerate_mode == BY_PATH_HOPS){
-		//	cout << "\tbucket " << ibucket << ": " << parent_buckets[ibucket] << endl;
-		//}
-
 		/* bucket into which to propagate probabilities */
 		int target_bucket = ibucket + child_weight;
 
@@ -193,11 +190,13 @@ static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child
 			child_buckets[target_bucket] += parent_buckets[ibucket];
 		}
 
-		if (traversal_dir == FORWARD_TRAVERSAL){
-			//TODO: keep incremental track of the demands contributed to children (for each possible path weight)
-			pthread_mutex_lock(&rr_node[parent_ind].my_mutex);
-			rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket] += parent_buckets[ibucket];
-			pthread_mutex_unlock(&rr_node[parent_ind].my_mutex);
+		if (self_congestion_mode == MODE_PATH_DEPENDENCE){
+			if (traversal_dir == FORWARD_TRAVERSAL){
+				//TODO: keep incremental track of the demands contributed to children (for each possible path weight)
+				pthread_mutex_lock(&rr_node[parent_ind].my_mutex);
+				rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket] += parent_buckets[ibucket];
+				pthread_mutex_unlock(&rr_node[parent_ind].my_mutex);
+			}
 		}
 	}
 }

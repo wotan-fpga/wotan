@@ -42,6 +42,9 @@ void wotan_init(int argc, char **argv, User_Options *user_opts, Arch_Structs *ar
 
 	wotan_print_title();
 
+	//may be changed when command-line arguments are read-in
+	srand(3);
+
 	/* check that we have the minimum number of arguments */
 	if (argc < 2){
 		wotan_print_usage();
@@ -74,7 +77,10 @@ void wotan_init(int argc, char **argv, User_Options *user_opts, Arch_Structs *ar
 
 		/* initialize path count history structures of rr nodes */
 		int fill_type_ind = arch_structs->get_fill_type_index();
-		routing_structs->alloc_rr_node_path_histories( (int)arch_structs->block_type[fill_type_ind].class_inf.size() );
+		if (user_opts->self_congestion_mode == MODE_RADIUS){
+			//TODO: allocate this in analysis_main::alloc_self_congestion_structs
+			routing_structs->alloc_rr_node_path_histories( (int)arch_structs->block_type[fill_type_ind].class_inf.size() );
+		}
 
 		/* initialize channel widths */
 		arch_structs->set_chanwidth( routing_structs );
@@ -175,22 +181,6 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			} else {
 				WTHROW(EX_INIT, "-analyze_core option needs y/n argument");
 			}
-		} else if ( strcmp(argv[iopt], "-keep_path_count_history") == 0 ){
-			/* routing nodes will keep track of path counts due to adjacent sources/sinks. increases accuracy of probability analysis */
-			iopt++;
-			
-			if (iopt >= argc){
-				WTHROW(EX_INIT, "Expected an argument for the -keep_path_count_history option");
-			}
-
-			if ( strcmp(argv[iopt], "y") == 0 ){
-				user_opts->keep_path_count_history = true;
-			} else if ( strcmp(argv[iopt], "n") == 0 ){
-				user_opts->keep_path_count_history = false;
-			} else {
-				WTHROW(EX_INIT, "-keep_path_count_history option needs y/n argument");
-			}
-
 		} else if ( strcmp(argv[iopt], "-use_routing_node_demand") == 0 ){
 			/* The demand for routing nodes (CHANX, CHANY) will be considered to be whatever is specified. Demands for all
 			   other node types will be considered to be 0. */
@@ -266,6 +256,37 @@ static void wotan_parse_command_args(int argc, char **argv, User_Options *user_o
 			}
 
 			user_opts->target_reliability = target_reliability;
+		} else if ( strcmp(argv[iopt], "-self_congestion") == 0 ){
+			/* method to deal with self congestion */
+			iopt++;
+
+			if (iopt >= argc){
+				WTHROW(EX_INIT, "Expected an argument for the -self_congestion option");
+			}
+
+			if ( strcmp(argv[iopt], "none") == 0 ){
+				user_opts->self_congestion_mode = MODE_NONE;
+			} else if ( strcmp(argv[iopt], "radius") == 0 ){
+				user_opts->self_congestion_mode = MODE_RADIUS;
+			} else if ( strcmp(argv[iopt], "path_dependence") == 0 ){
+				user_opts->self_congestion_mode = MODE_PATH_DEPENDENCE;
+			} else {
+				WTHROW(EX_INIT, "Unrecognized self_congestion mode: " << argv[iopt]);
+			}
+		} else if ( strcmp(argv[iopt], "-seed") == 0 ){
+			/* seed for random numbers */
+			iopt++;
+
+			if (iopt >= argc){
+				WTHROW(EX_INIT, "Expected an argument for the -seed option");
+			}
+
+			stringstream ss;
+			ss << argv[iopt];
+			unsigned int seed;
+			ss >> seed;
+
+			srand(seed);
 		} else if ( strcmp(argv[iopt], "-nodisp") == 0 ){
 			/* no graphics */
 			user_opts->nodisp = true;
@@ -295,7 +316,8 @@ static void wotan_print_usage(){
 	
 	cout << "Usage:" << endl;
 	cout << "\t./wotan -rr_structs_file <file_path> [-structs_mode <VPR/simple>] [-threads <num_threads>] [-max_connection_length <max_length>]" << endl <<
-		"\t\t[-keep_path_count_history <y/n>] [-analyze_core <y/n>] [-use_routing_node_demand <demand>] [-nodisp]" << endl << endl;
+		"\t\t[-analyze_core <y/n>] [-use_routing_node_demand <demand>]" << endl <<
+		"\t\t[-demand_multiplier <multiplier>] [-self_congestion_mode <none/radius/path_dependence>] [-seed <value>] [-nodisp]" << endl << endl;
 
 	cout << "Options:" << endl;
 
@@ -313,16 +335,27 @@ static void wotan_print_usage(){
 	cout << "\t-analyze_core: if set, reachability analysis will only be performed for a core region of the FPGA;" << endl;
 	cout << "\t\tpath enumeration is still performed everywhere (enabled by default)" << endl << endl;
 
-	cout << "\t-keep_path_count_history: routing nodes will keep path count history for adjacent sources/sinks. This increases accuracy of" << endl;
-	cout << "\t\treachability analysis (enabled by default)" << endl << endl;
-
 	cout << "\t-use_routing_node_demand: if specified, routing nodes (CHANX/CHANY) will be treated as having the specified demand; nodes of other" << endl;
 	cout << "\t\ttypes will be treated as having a demand of 0 (disabled by default)" << endl << endl;
 
 	cout << "\t-demand_multiplier: if specified this scaling factor will be applied to node demands (except ipin/opin/source/sink)" << endl << endl;
 
-	cout << "\t-search_for_reliability: if specified, wotan will search for the demand_multiplier value required to achieve the specified value of reliability." << endl;
-	cout << "\t\tany values specified with the -demand_multiplier option will be ignored." << endl << endl;
+	cout << "\t-self_congestion: specify the mode used to deal with self-congestion effects. Demands enumerated from a source to a" << endl;
+	cout << "\t                  sink can conflict with routing probability analysis from that source to that sink. i.e. if the" << endl;
+	cout << "\t                  output pin associated with the source has a demand of 1.0, all connections evaluated from the source" << endl;
+	cout << "\t                  will have a routing probability of 0 unless the demand contributed to that pin by the source is discounted" << endl;
+	cout << "\t\tnone -- do not deal with self-congestion" << endl;
+	cout << "\t\tradius -- Each source (sink) keeps track of demands contributed to nearby nodes within some specified Manhattan distance." << endl;
+	cout << "\t\t          These demands can then be discounted when analyzing probability from that source (to that sink)." << endl;
+	cout << "\t\tpath_dependence -- More complicated but more accurate. Each node keeps track of demands contributed to it by its children." << endl;
+	cout << "\t\t   (default)       Child node demands are then discounted routing probability analysis traverses from the respective child" << endl;
+	cout << "\t\t                   node to this one. This mode uses significantly more memory." << endl << endl;
+
+	//Commenting. This doesn't really work.
+	//cout << "\t-search_for_reliability: if specified, wotan will search for the demand_multiplier value required to achieve the specified value of reliability." << endl;
+	//cout << "\t\tany values specified with the -demand_multiplier option will be ignored." << endl << endl;
+
+	cout << "\t-seed: specified the seed for the random number generator" << endl << endl;
 
 	cout << "\t-nodisp: if specified, graphics will be disabled (graphics are enabled by default)" << endl << endl;
 }
@@ -367,9 +400,8 @@ static void check_setup( User_Options *user_opts, Arch_Structs *arch_structs, Ro
 
 	/* if user wants a specific routing node demand (via -use_routing_node_demand) option, then path count histories should not be kept */
 	if (user_opts->use_routing_node_demand > 0){
-		if (user_opts->keep_path_count_history){
-			WTHROW(EX_INIT, "Path count histories (via -keep_path_count_history) should not be enabled along with a specific routing node demand " << 
-			                 "(via -use_routing_node_demand).");
+		if (user_opts->self_congestion_mode != MODE_NONE){
+			WTHROW(EX_INIT, "Only the 'none' self-congestion method is allowed if the -use_routing_node_demand option is used.");
 		}
 	}
 

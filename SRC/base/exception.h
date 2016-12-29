@@ -9,7 +9,7 @@
 /* Used for throwing exceptions. Auto-includes file and line number. Us as:
 	WTHROW(EX_ARCH, "some text" << my_obj << 123 << endl); */
 #define WTHROW(ex_type, message) do {std::stringstream exss; exss << message;			\
-				Wotan_Exception ex(exss.str(), __FILE__, __LINE__, ex_type);		\
+				Wotan_Exception ex(exss.str(), std::string(__FILE__), __LINE__, ex_type);		\
 				throw ex;} while(false) 
 
 /**** Enums ****/
@@ -33,20 +33,11 @@ class Wotan_Exception{
 	std::string file;
 	e_ex_type type;
 
-	/* Couple of constructors for different params */
-	Wotan_Exception(char *m, char *f, int l, e_ex_type t){
-		std::stringstream ss_m, ss_f;
-		ss_m << m; ss_f << f;
-		message = ss_m.str();
-		file = ss_f.str();
-		line = l;
-		type = t;
-	}
-	Wotan_Exception(std::string m, char *f, int l, e_ex_type t){
+	Wotan_Exception(std::string m, std::string f, int l, e_ex_type t){
 		std::stringstream ss_f;
 		ss_f << f;
 		message = m;
-		file = ss_f.str();
+		file = f;
 		line = l;
 		type = t;
 	}

@@ -31,12 +31,13 @@ User_Options::User_Options(){
 	this->rr_structs_mode = RR_STRUCTS_UNDEFINED;
 	this->num_threads = 1;
 	this->max_connection_length = 3;
-	this->keep_path_count_history = true;
 	this->analyze_core = true;
 
 	this->use_routing_node_demand = UNDEFINED;
 
 	this->target_reliability = UNDEFINED;
+
+	this->self_congestion_mode = MODE_PATH_DEPENDENCE;
 
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */
@@ -481,11 +482,11 @@ void RR_Node::alloc_child_demand_contributions(int max_path_weight){
 		return;
 	}
 
-	this->child_demand_contributions = new double* [this->get_num_out_edges()];
+	this->child_demand_contributions = new float* [this->get_num_out_edges()];
 
 	/* allocate "max_path_weight" buckets for each outgoing edge */
 	for (short iedge = 0; iedge < this->get_num_out_edges(); iedge++){
-		this->child_demand_contributions[iedge] = new double [max_path_weight+1];
+		this->child_demand_contributions[iedge] = new float [max_path_weight+1];
 		for (int ibucket = 0; ibucket < max_path_weight+1; ibucket++){
 			this->child_demand_contributions[iedge][ibucket] = 0.0;
 		}
@@ -602,11 +603,6 @@ double RR_Node::get_demand(User_Options *user_opts) const{
 	}
 
 	if (user_opts->use_routing_node_demand <= 0){
-		//XXX TEST: DELETE ME
-		//e_rr_type my_type = this->get_rr_type();
-		//if (my_type == IPIN /*|| my_type == OPIN*/)
-		//	return 0.0;
-
 		/* return demand recorded at this node */
 		return_value = this->demand * user_opts->demand_multiplier;
 	} else {
@@ -1503,7 +1499,7 @@ void Node_Topological_Info::clear(){
 	this->node_waiting_info.clear();
 	this->buckets.clear();
 
-	for (int ibucket = 0; ibucket < this->demand_discounts.size(); ibucket++){
+	for (int ibucket = 0; ibucket < (int)this->demand_discounts.size(); ibucket++){
 		this->demand_discounts[ibucket] = 0.0;
 	}
 }

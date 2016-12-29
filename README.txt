@@ -30,7 +30,6 @@ The -dump_rr_structs_file option will cause VPR to print the routing resource da
 
 	./wotan -rr_structs_file <dumped_rr_structs_file> -threads <threads> 
 		-demand_multiplier <demand_mult> -max_connection_length 8
-		-keep_path_count_history n
 
 Where:
       -threads            -- will run Wotan with the specified number of CPU threads (can significantly
@@ -47,9 +46,6 @@ Where:
       -max_connection_length    -- path enumeration is performed between sources and sinks that are
                                    at most this Manhattan distance apart. Values between 4 and 8
                                    are reasonable tradeoffs of runtime and result quality
-
-      -keep_path_count_history  -- this is an option that was originally used to avoid self-congestion
-                                   effects. It should be disabled when using the 'path_dependence' branch
 
 
 Running Wotan with these command line options will make Wotan perform the congestion estimation and routing probability evaluation steps, printing the network reliability of the routing architecture at the specified value of the demand multiplier (along with other internal metrics along the way).

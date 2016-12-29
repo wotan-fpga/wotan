@@ -55,6 +55,7 @@ enum e_traversal_dir{
 	BACKWARD_TRAVERSAL
 };
 
+
 /* specifies what form the contents of the rr structs file (parsed in during initialization) are expected to take 
 	RR_STRUCTS_VPR -- dumped routing resource structs from VPR. Should include lists of:
 			- rr nodes
@@ -82,6 +83,29 @@ enum e_bucket_mode{
 	BY_PATH_HOPS
 };
 
+
+/* specifies the mode to use to deal with self-congestion effects.
+   Demands contributed by path enumeration from a source to a sink will be taken into
+   account during routing probability analysis if they are not somehow discounted. For example, 
+   if the output pin had a demand of 1.0, all connections evaluated from the associated source to
+   a target sink will have a routing probability of 0 unless the demand contributed to that pin
+   by the source is discounted.
+   
+   Methods to deal with self-congestion:
+   	MODE_NONE -- do nothing
+	MODE_RADIUS: 
+		Each source (sink) keeps track of demands contributed to nearby nodes within some specified Manhattan distance.
+		These demands can then be discounted when analyzing probability from that source (to that sink).
+	MODE_PATH_DEPENDENCE:
+		This is a more complicated (but more accurate) method to keep track of self congestion. Essentially,
+		a node v keeps track of demands contributed to it by its children U. If, while propagating routing
+		probabilities, we traverse from u to v, the demands contributed to v by u should be discounted
+		(since this congestion has already been accounted for when calculating the probability of reaching u). */
+enum e_self_congestion_mode{
+	MODE_NONE = 0,
+	MODE_RADIUS,
+	MODE_PATH_DEPENDENCE
+};
 
 
 /**** Forward Declarations ****/
@@ -135,7 +159,6 @@ public:
 	e_rr_structs_mode rr_structs_mode;	/* Wotan's routing structures are read-in according to this mode */
 	std::string rr_structs_file;		/* path to file from which rr structures are to be read */
 	int max_connection_length;		/* maximum connection length to be considered during path enumeration */
-	bool keep_path_count_history;		/* routing nodes will keep track of path counts from adjacent sources/sinks. adds accuracy to probability analysis */
 	bool analyze_core;			/* reachability analysis will only be performed for a core region of the FPGA */ //TODO: defined as what?
 
 	float use_routing_node_demand;		/* if not UNDEFINED, then demand for routing nodes (CHANX/CHANY) will be considered to be whatever is specified here.
@@ -144,6 +167,8 @@ public:
 	int num_threads;			/* number of threads to use for path enumeration & probability analysis */
 
 	float target_reliability; 		/* if not UNDEFINED, Wotan will search for a demand multiplier that results in the specified value of reliability */
+
+	e_self_congestion_mode self_congestion_mode;	/* method for dealing with self-congestion effects. see comment on enum */
 
 	double ipin_probability;
 	double opin_probability;
@@ -303,9 +328,11 @@ public:
 	int *in_edges;					/* a list of rr nodes *from* which this node receives connections [0..get_num_in_edges()-1] */
 	short *in_switches;				/* a list of switches which are used by the edges linking into this node */
 
-	//XXX COMMENT
 	//TODO: make this float if possible
-	double **child_demand_contributions;
+	/* keeps track of demand contributes from each of the children, for each of the possible path lengths
+	   That is, this array has dimensions [0..num_children-1][0..num_child_demand_buckets-1]  where num_buckets.
+	   This is used to account for self-congestion effects if the corresponding self-congestion mode is selected (see e_self_congestion_mode enum) */
+	float **child_demand_contributions;
 
 
 	/* allocator functions */
