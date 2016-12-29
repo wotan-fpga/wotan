@@ -46,10 +46,14 @@ regex_Rel = (
 
 ############ Wotan/VPR command line arguments ############
 #VPR options are derived from test suite or arch point
-wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -threads 10 -max_connection_length 8 -keep_path_count_history n'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -threads 10 -max_connection_length 8 -keep_path_count_history n'
 #wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8 -keep_path_count_history n'
 #wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8 -keep_path_count_history y'
 #wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -keep_path_count_history n -use_routing_node_demand 0.85'
+
+wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 10 -max_connection_length 8'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 8'
+#wotan_opts = '-rr_structs_file ' + vtr_path + '/vpr' + '/dumped_rr_structs.txt -nodisp -threads 4 -max_connection_length 2 -use_routing_node_demand 0.85'
 
 
 #Test type variable applies when 'run_all_tests_sequentially' is used. It is not used for 'run_architecture_comparisons' (which are hard-coded for a specific test type already)

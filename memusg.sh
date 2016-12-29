@@ -1,4 +1,4 @@
-g -- Measure memory usage of processes
+# -- Measure memory usage of processes
 # Usage: memusg COMMAND [ARGS]...
 #
 # Seems to be in kilobytes

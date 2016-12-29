@@ -22,10 +22,11 @@ using namespace std;
 
 
 /**** Function Declarations ****/
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node);
+static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node,
+                                                 e_self_congestion_mode self_congestion_mode);
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
-			e_traversal_dir traversal_dir, int max_path_weight);
+			e_traversal_dir traversal_dir, int max_path_weight, e_self_congestion_mode self_congestion_mode);
 /* probability that node with specified buckets is reachable from source */
 static float get_prob_reachable( double *source_buckets, int num_source_buckets);
 
@@ -47,7 +48,7 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 	//cout << "   node " << popped_node << "  rr_type: " << rr_node[popped_node].get_rr_type_string() << "  weight: " << node_weight << "  demand: " << node_demand << endl;
 	//cout << "       before: " << rr_node[popped_node].get_demand(user_opts) << endl;
 
-	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node);
+	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node, user_opts->self_congestion_mode);
 
 	//pthread_mutex_lock(&g_mutex);
 	//g_prob_nodes_popped++;
@@ -60,7 +61,8 @@ bool propagate_child_iterated_func(int parent_ind, int parent_edge_ind, int node
 	bool ignore_node = false;
 
 	/* propagate the node probabilities (stores in the bucket structure) of the parent node to this node */
-	propagate_probabilities(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight);
+	propagate_probabilities(parent_ind, parent_edge_ind, node_ind, rr_node, ss_distances, node_topo_inf, traversal_dir, max_path_weight,
+	                        user_opts->self_congestion_mode);
 
 	return ignore_node;
 }
@@ -78,11 +80,11 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 
 /* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
    probability that the node is uncongested */
-static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node){
+static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node,
+                                                 e_self_congestion_mode self_congestion_mode){
 	double *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
-	//TODO: subtract the demand contributed from *valid* parents of this node so we don't count it twice
 	//Need to know:
 	//	1) The demand contributed by each parent
 	//	2) Which parents are valid in the current s-t connection
@@ -96,22 +98,27 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 	//			- It is clear that discount from parent should *only* be applied to those paths which the parent contributed
 	//			- SOLUTION: in topo inf structure, keep another "bucket" to determine demand discounts from parents
 
+	
 	vector <bool> discount_bucket_demand;
-	discount_bucket_demand.assign(num_source_buckets, false);
-
 	float demand_discount = 0;
-	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
-		demand_discount += node_topo_inf[node_ind].demand_discounts[ibucket];
-		if (node_topo_inf[node_ind].demand_discounts[ibucket] > 0.0){
-			discount_bucket_demand[ibucket] = true;
-		}
+	if (self_congestion_mode == MODE_PATH_DEPENDENCE){
+		/* deal with self-congestion using CHILD_DEMAND_CONTRIBUTIONS mode */
+		discount_bucket_demand.assign(num_source_buckets, false);
 
+		for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
+			demand_discount += node_topo_inf[node_ind].demand_discounts[ibucket];
+			if (node_topo_inf[node_ind].demand_discounts[ibucket] > 0.0){
+				discount_bucket_demand[ibucket] = true;
+			}
+		}
 	}
 
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
 		float adjusted_node_demand = node_demand;
-		if (discount_bucket_demand[ibucket]){
-			adjusted_node_demand -= demand_discount;
+		if (self_congestion_mode == MODE_PATH_DEPENDENCE){
+			if (discount_bucket_demand[ibucket]){
+				adjusted_node_demand -= demand_discount;
+			}
 		}
 
 		if (source_buckets[ibucket] != UNDEFINED){
@@ -127,7 +134,7 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
-			e_traversal_dir traversal_dir, int max_path_weight){
+			e_traversal_dir traversal_dir, int max_path_weight, e_self_congestion_mode self_congestion_mode){
 
 	double *parent_buckets;
 	double *child_buckets;
@@ -181,8 +188,10 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 			}
 		}
 
-		if (traversal_dir == FORWARD_TRAVERSAL){
-			node_topo_inf[child_ind].demand_discounts[target_bucket] += rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket];
+		if (self_congestion_mode == MODE_PATH_DEPENDENCE){
+			if (traversal_dir == FORWARD_TRAVERSAL){
+				node_topo_inf[child_ind].demand_discounts[target_bucket] += rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket];
+			}
 		}
 	}
 }
