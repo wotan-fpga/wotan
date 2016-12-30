@@ -1,3 +1,5 @@
+# Generates a single arch xml file given arch string
+
 import os
 import subprocess
 import re
