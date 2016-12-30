@@ -372,6 +372,7 @@ void RR_Node_Base::set_direction(e_direction dir){
 /*==== RR_Node Class ====*/
 /* Constructor initializes everything to UNDEFINED */
 RR_Node::RR_Node(){
+	this->is_virtual_source = false;
 	this->num_in_edges = UNDEFINED;
 	this->weight = UNDEFINED;
 	this->in_edges = NULL;
@@ -400,6 +401,7 @@ RR_Node::~RR_Node(){
 
 RR_Node::RR_Node(const RR_Node &obj) : RR_Node_Base(obj){
 
+	this->is_virtual_source = false;
 	this->num_in_edges = obj.get_num_in_edges();
 	this->weight = obj.get_weight();
 	this->demand = obj.get_demand(NULL);
@@ -592,6 +594,14 @@ void RR_Node::set_weight(float demand_multiplier){
 /* sets the index of the virtual source node corresponding to this node. can be used for enumerating paths from non-source nodes */
 void RR_Node::set_virtual_source_node_ind(int node_ind){
 	this->virtual_source_node_ind = node_ind;
+}
+
+void RR_Node::set_is_virtual_source(bool is_virt){
+	this->is_virtual_source = is_virt;
+}
+
+bool RR_Node::get_is_virtual_source() const{
+	return this->is_virtual_source;
 }
 
 /* returns node demand */

@@ -413,10 +413,13 @@ static void check_setup( User_Options *user_opts, Arch_Structs *arch_structs, Ro
 			WTHROW(EX_INIT, "No display mode currently supported for use with the '-rr_structs_mode simple' option. Please use the -nodisp option to disable graphics");
 		}
 
-		if (user_opts->use_routing_node_demand < 0){
-			WTHROW(EX_INIT, "The '-rr_structs_mode simple' option currently requires that the '-use_routing_node_demand' option be used to specify a positive " << 
-			                 "demand for routing nodes");
+		if (user_opts->use_routing_node_demand != UNDEFINED){
+			WTHROW(EX_INIT, "The -use_routing_node_demand option does currently does not work.");
 		}
+		//if (user_opts->use_routing_node_demand < 0){
+		//	WTHROW(EX_INIT, "The '-rr_structs_mode simple' option currently requires that the '-use_routing_node_demand' option be used to specify a positive " << 
+		//	                 "demand for routing nodes");
+		//}
 	}
 }
 
@@ -446,11 +449,6 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 		x2 = sink_node.get_xhigh();
 		y2 = sink_node.get_yhigh();
 
-		/* create a virtual source that will have outgoing edges to those chanx/chany nodes immediately reachable (backwards) by the sink (through ipins) */
-		RR_Node new_node;
-		new_node.set_rr_type(SOURCE);
-		new_node.set_coordinates(x1, y1, x2, y2);
-		new_node.set_ptc_num(ptc);
 
 		if (num_in_edges_sink <= 0){
 			WTHROW(EX_INIT, "Found sink node (" << inode << ") with no incoming edges");
@@ -481,6 +479,15 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 			}
 		}
 
+		/* create a virtual source that will have outgoing edges to those chanx/chany nodes immediately reachable (backwards) by the sink (through ipins) */
+		rr_node.push_back(RR_Node());
+		RR_Node &new_node = rr_node.back();
+		//RR_Node new_node;
+		new_node.set_is_virtual_source(true);
+		new_node.set_rr_type(SOURCE);
+		new_node.set_coordinates(x1, y1, x2, y2);
+		new_node.set_ptc_num(ptc);
+
 		/* we have found unique nodes which connect into the ipins (that then connect into the sink). add these nodes as out-edges for
 		   our new virtual source */
 		int num_channel_nodes = (int)channel_nodes.size();
@@ -492,7 +499,7 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 		}
 
 		/* insert new node into the rr_node structure */
-		rr_node.push_back(new_node);
+		//rr_node.push_back(new_node);
 		int new_node_index = (int)rr_node.size()-1;
 
 		/* mark the sink node with the index of this new virtual source */

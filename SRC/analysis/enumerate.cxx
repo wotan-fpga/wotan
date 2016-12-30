@@ -192,7 +192,7 @@ static void propagate_path_counts(int parent_ind, int parent_edge_ind, int child
 
 		if (self_congestion_mode == MODE_PATH_DEPENDENCE){
 			if (traversal_dir == FORWARD_TRAVERSAL){
-				//TODO: keep incremental track of the demands contributed to children (for each possible path weight)
+				//keep incremental track of the demands contributed to children (for each possible path weight)
 				pthread_mutex_lock(&rr_node[parent_ind].my_mutex);
 				rr_node[parent_ind].child_demand_contributions[parent_edge_ind][ibucket] += parent_buckets[ibucket];
 				pthread_mutex_unlock(&rr_node[parent_ind].my_mutex);
