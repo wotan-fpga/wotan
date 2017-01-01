@@ -117,11 +117,15 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 		}
 
 		if (source_buckets[ibucket] != UNDEFINED){
+			/* constrain the node demand into the [0,1] range */
+			adjusted_node_demand = max(0.0F, adjusted_node_demand);
+			adjusted_node_demand = min(1.0F, adjusted_node_demand);
+
 			//source_buckets[ibucket] = or_two_probs(source_buckets[ibucket], min(1.0F, node_demand));	//unreachability
 
 			//Basically AND'ing the probability that the node can be reached via a path of a given weight (ibucket) with the
 			//probability that the node in question is available
-			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, adjusted_node_demand));		//reachability
+			source_buckets[ibucket] = source_buckets[ibucket] * (1 - adjusted_node_demand);		//reachability
 
 		}
 	}

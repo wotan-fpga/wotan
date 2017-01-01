@@ -37,7 +37,7 @@ User_Options::User_Options(){
 
 	this->target_reliability = UNDEFINED;
 
-	this->self_congestion_mode = MODE_PATH_DEPENDENCE;
+	this->self_congestion_mode = MODE_NONE;
 
 	/* pin pbobabilities can be initialized from a file in the future, but for now set them
 	   to some default values */

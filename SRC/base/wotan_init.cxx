@@ -317,7 +317,7 @@ static void wotan_print_usage(){
 	cout << "perform reachability analysis on different source/sink pairs." << endl << endl;
 	
 	cout << "Usage:" << endl;
-	cout << "\t./wotan -rr_structs_file <file_path> [-structs_mode <VPR/simple>] [-threads <num_threads>] [-max_connection_length <max_length>]" << endl <<
+	cout << "\t./wotan -rr_structs_file <file_path> [-rr_structs_mode <VPR/simple>] [-threads <num_threads>] [-max_connection_length <max_length>]" << endl <<
 		"\t\t[-analyze_core <y/n>] [-use_routing_node_demand <demand>]" << endl <<
 		"\t\t[-demand_multiplier <multiplier>] [-self_congestion_mode <none/radius/path_dependence>] [-seed <value>] [-nodisp]" << endl << endl;
 
@@ -325,7 +325,7 @@ static void wotan_print_usage(){
 
 	cout << "\t-rr_structs_file: used to specify a path to the structs file based on which Wotan will be initialized" << endl << endl;
 
-	cout << "\t-structs_mode: used to specify what 'mode' Wotan should expect the rr_structs_file to be in. The allowed modes are:" << endl <<
+	cout << "\t-rr_structs_mode: used to specify what 'mode' Wotan should expect the rr_structs_file to be in. The allowed modes are:" << endl <<
 		"\t\tVPR -- expect rr structs file to contain dumped structures from VPR (default)" << endl <<
 		"\t\tsimple -- expect rr structs file to contain only the rr_node section (in the same format as for the dumped VPR structures file) with" << endl <<
 		"\t\t\tonly one source node and one sink node. This is useful for debugging and analyzing custom graphs" << endl << endl;
@@ -346,11 +346,11 @@ static void wotan_print_usage(){
 	cout << "\t                  sink can conflict with routing probability analysis from that source to that sink. i.e. if the" << endl;
 	cout << "\t                  output pin associated with the source has a demand of 1.0, all connections evaluated from the source" << endl;
 	cout << "\t                  will have a routing probability of 0 unless the demand contributed to that pin by the source is discounted" << endl;
-	cout << "\t\tnone -- do not deal with self-congestion" << endl;
+	cout << "\t\tnone -- do not deal with self-congestion (default)" << endl;
 	cout << "\t\tradius -- Each source (sink) keeps track of demands contributed to nearby nodes within some specified Manhattan distance." << endl;
 	cout << "\t\t          These demands can then be discounted when analyzing probability from that source (to that sink)." << endl;
 	cout << "\t\tpath_dependence -- More complicated but more accurate. Each node keeps track of demands contributed to it by its children." << endl;
-	cout << "\t\t   (default)       Child node demands are then discounted routing probability analysis traverses from the respective child" << endl;
+	cout << "\t\t                   Child node demands are then discounted routing probability analysis traverses from the respective child" << endl;
 	cout << "\t\t                   node to this one. This mode uses significantly more memory." << endl << endl;
 
 	//Commenting. This doesn't really work.
