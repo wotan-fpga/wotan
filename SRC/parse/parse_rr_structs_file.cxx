@@ -233,7 +233,6 @@ static void parse_rr_node_section(int num_rr_nodes, t_rr_node &rr_node, fstream 
 
 		rr_node[inode].set_direction((e_direction)direction);
 
-
 		/* the next line tells us how many edges there are */
 		getline(file, line);
 		int num_edges;

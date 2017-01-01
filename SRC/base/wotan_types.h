@@ -304,9 +304,10 @@ private:
 	/* a hack that allows paths to be enumerated out of non-source nodes -- a virtual source node can be created to connect to some
 	   subset of predecessors of this node which can be useful for things like accounting for fanout (by enumerating paths backward
 	   through ipins essentially).
-	   this variable marks the index of the corresponding virtual source. */
+	   this variable marks the index of the virtual source corresponding to this IPIN (if this is an IPIN) */
 	int virtual_source_node_ind;
-
+	/* is this node a virtual source? */
+	bool is_virtual_source;
 
 protected:
 	/* Increments + returns path count history, or simply returns path count history
@@ -314,6 +315,7 @@ protected:
 	float access_path_count_history(float increment_val, RR_Node &target_node, bool increment);
 
 public:
+
 	int num_lb_sources_and_sinks;			/* total number of sources and sinks on a logic block */
 	int num_child_demand_buckets;
 	pthread_mutex_t my_mutex;
@@ -350,12 +352,14 @@ public:
 	void increment_demand(double increment, float demand_multiplier);
 	void set_virtual_source_node_ind(int);
 	void set_weight(float demand_multiplier);
+	void set_is_virtual_source(bool is_virt);
 
 	/* get methods */
 	short get_num_in_edges() const;
 	double get_demand(User_Options*) const;
 	float get_weight() const;
 	int get_virtual_source_node_ind() const;
+	bool get_is_virtual_source() const;
 
 	/* increments path count history at this node due to the specified target node.
 	   the specified target node is either the source or sink of a connection that

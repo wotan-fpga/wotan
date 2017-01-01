@@ -386,12 +386,16 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	int source_node_ind = UNDEFINED;
 	int sink_node_ind = UNDEFINED;
 
-	int large_connection_length = 1000;
-	int large_max_path_weight = 1000;
+	int large_connection_length = 10;
+	int large_max_path_weight = 10;
 
 	/* figure out which node is the source and which node is the sink */
 	for (int inode = 0; inode < num_rr_nodes; inode++){
 		e_rr_type node_type = rr_node[inode].get_rr_type();
+		if (rr_node[inode].get_is_virtual_source()){
+			continue;
+		}
+
 
 		/* if this node is a source or sink, record the corresponding node index.
 		   currently only one source and one sink node is allowed for this 'simple graph' analysis, so if 
@@ -428,22 +432,33 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 		rr_node[inode].alloc_child_demand_contributions(large_max_path_weight+1);
 	}
 
+	/* allocate structures to deal with self-congestion */
+	if (user_opts->self_congestion_mode == MODE_PATH_DEPENDENCE){
+		//for (int inode = 0; inode < num_rr_nodes; inode++){
+		//	node_topo_inf[inode].demand_discounts.assign(large_max_path_weight+1, 0.0);
+		//	rr_node[inode].alloc_child_demand_contributions(large_max_path_weight+1);
+		//}
+		//Can't be implemented well. The issue is with dynamic weights. When weights update dynamically, it can happen that
+		//demand discounts due to the path dependence method get placed in the incorrect bucket (e.g. demand discounts are set at the parent,
+		//then paths are enumerated through the child node and the child node changes weight; during probability analysis the demand discount
+		//bucket may thus not line up with the correct source probability bucket). In the case of large FPGAs this isn't a big deal -- we'll
+		//misplace a minority of demand discounts into incorrect buckets, but on the whole most should line up correctly.
+		WTHROW(EX_INIT, "Path dependence will not work with simple graph!!");
+	} else if (user_opts->self_congestion_mode == MODE_RADIUS){
+		WTHROW(EX_INIT, "Not implemented!!!");
+	}
+
+
 	/* perform path enumeration */
 	enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, routing_structs, ss_distances,
 	                     node_topo_inf, large_connection_length, nodes_visited, user_opts, (float)UNDEFINED);
 
 	/* print how many paths run through each node */
-	cout << "Node paths: " << endl;
+	cout << "Node demands: " << endl;
 	for (int inode = 0; inode < num_rr_nodes; inode++){
-		e_rr_type rr_type = rr_node[inode].get_rr_type();
-		int node_weight = rr_node[inode].get_weight();
-		int node_dist_to_source = ss_distances[inode].get_source_distance();
 
-		int num_node_paths = node_topo_inf[inode].buckets.get_num_paths(node_weight, node_dist_to_source, large_max_path_weight);
-
-		cout << inode << ": " << g_rr_type_string[rr_type] << ", " << num_node_paths << " paths" << endl;
+		cout << inode << ": demand " << rr_node[inode].get_demand(user_opts) << endl;
 	}
-
 
 	/* clean structures in preparation for probability estimation */
 	clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, large_max_path_weight);
@@ -1296,7 +1311,7 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 
 	
 	pthread_mutex_lock(&g_mutex);
-	g_total_adjusted_enum_path_weight += (float)max_path_weight;
+	g_total_adjusted_enum_path_weight += (float)max_path_weight;	//XXX is this needed?
 	pthread_mutex_unlock(&g_mutex);
 
 	/* perform path enumeration */
@@ -1317,7 +1332,6 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 		int source_node_weight = rr_node[source_node_ind].get_weight();
 		node_topo_inf[source_node_ind].buckets.source_buckets[0] = 1;
 		float num_enumerated = node_topo_inf[source_node_ind].buckets.get_num_paths(source_node_weight, 0, max_path_weight);
-
 
 		float scaled_starting_source_paths;
 		if (num_enumerated > 0){
@@ -1997,7 +2011,7 @@ float get_node_demand_adjusted_for_path_history(int node_ind, t_rr_node &rr_node
 
 	float adjusted_node_demand = rr_node[node_ind].get_demand(user_opts);
 
-	if (fill_type != NULL){
+	if (fill_type != NULL && user_opts->self_congestion_mode == MODE_RADIUS){
 		RR_Node &source_node = rr_node[ source_ind ];
 		int source_ptc = source_node.get_ptc_num();
 		int num_source_pins = fill_type->class_inf[ source_ptc ].get_num_pins();

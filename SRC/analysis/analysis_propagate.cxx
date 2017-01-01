@@ -23,7 +23,7 @@ using namespace std;
 
 /**** Function Declarations ****/
 static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node,
-                                                 e_self_congestion_mode self_congestion_mode);
+                                                 e_self_congestion_mode self_congestion_mode, double demand_multiplier);
 /* propagates path probabilities stored in the bucket structure of the parent node to the bucket structure of the child node */
 static void propagate_probabilities(int parent_ind, int parent_edge_ind, int child_ind, t_rr_node &rr_node, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf,
 			e_traversal_dir traversal_dir, int max_path_weight, e_self_congestion_mode self_congestion_mode);
@@ -42,17 +42,10 @@ void propagate_node_popped_func(int popped_node, int from_node_ind, int to_node_
 	/* the path probabilities have been propagated from upstream nodes to this node, but
 	   the probability of *this* node has not yet been factored in. this is done now */
 	int node_weight = rr_node[popped_node].get_weight();
-	//float node_demand = rr_node[popped_node].get_demand();
 	float node_demand = get_node_demand_adjusted_for_path_history(popped_node, rr_node, from_node_ind, to_node_ind, propagate_structs->fill_type, user_opts);
 	float adjusted_demand = min(1.0F, node_demand);
-	//cout << "   node " << popped_node << "  rr_type: " << rr_node[popped_node].get_rr_type_string() << "  weight: " << node_weight << "  demand: " << node_demand << endl;
-	//cout << "       before: " << rr_node[popped_node].get_demand(user_opts) << endl;
 
-	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node, user_opts->self_congestion_mode);
-
-	//pthread_mutex_lock(&g_mutex);
-	//g_prob_nodes_popped++;
-	//pthread_mutex_unlock(&g_mutex);
+	account_for_current_node_probability(popped_node, node_weight, adjusted_demand, node_topo_inf, rr_node, user_opts->self_congestion_mode, user_opts->demand_multiplier);
 }
 
 /* Called when topological traversal is iterateing over a node's children */
@@ -81,7 +74,7 @@ void propagate_traversal_done_func(int from_node_ind, int to_node_ind, t_rr_node
 /* Probability of a path successfully traversing through a given node is the probability that the path can reach the node AND'ed with the
    probability that the node is uncongested */
 static void account_for_current_node_probability(int node_ind, int node_weight, float node_demand, t_node_topo_inf &node_topo_inf, t_rr_node &rr_node,
-                                                 e_self_congestion_mode self_congestion_mode){
+                                                 e_self_congestion_mode self_congestion_mode, double demand_multiplier){
 	double *source_buckets = node_topo_inf[node_ind].buckets.source_buckets;
 	int num_source_buckets = node_topo_inf[node_ind].buckets.get_num_source_buckets();
 
@@ -111,12 +104,14 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 				discount_bucket_demand[ibucket] = true;
 			}
 		}
+
+		demand_discount *= demand_multiplier;
 	}
 
 	for (int ibucket = 0; ibucket < num_source_buckets; ibucket++){
 		float adjusted_node_demand = node_demand;
 		if (self_congestion_mode == MODE_PATH_DEPENDENCE){
-			if (discount_bucket_demand[ibucket]){
+			if (discount_bucket_demand[ibucket] && rr_node[node_ind].get_rr_type() != OPIN){
 				adjusted_node_demand -= demand_discount;
 			}
 		}
@@ -127,6 +122,7 @@ static void account_for_current_node_probability(int node_ind, int node_weight, 
 			//Basically AND'ing the probability that the node can be reached via a path of a given weight (ibucket) with the
 			//probability that the node in question is available
 			source_buckets[ibucket] = source_buckets[ibucket] * (1 - min(1.0F, adjusted_node_demand));		//reachability
+
 		}
 	}
 }
@@ -166,7 +162,8 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 
 	/* now propagate path probabilities. the assumption is that every single path is independent (perhaps not a very good assumption)
 	   TODO. add better description */
-	for (int ibucket = parent_path_weight_to_start; ibucket < num_buckets; ibucket++){	//parent cannot carry paths of weight smaller than itself
+	//for (int ibucket = parent_path_weight_to_start; ibucket < num_buckets; ibucket++){	//parent cannot carry paths of weight smaller than itself
+	for (int ibucket = 0; ibucket < num_buckets; ibucket++){	//XXX but weight has possibly changed due to dynamic weights.......
 		/* we're done if this set of paths cannot possibly reach the target node 
 		   in under the minimum allowable path weight */
 		if (ibucket + child_path_weight_to_dest > max_path_weight){
@@ -176,7 +173,7 @@ static void propagate_probabilities(int parent_ind, int parent_edge_ind, int chi
 		/* bucket into which to propagate probabilities */
 		int target_bucket = ibucket + child_weight;
 
-		/* propagate the probability of paths *not* being available */
+		/* propagate routing probability of paths */
 		if (child_buckets[target_bucket] == UNDEFINED){
 			if (parent_buckets[ibucket] != UNDEFINED){
 				child_buckets[target_bucket] = parent_buckets[ibucket];
