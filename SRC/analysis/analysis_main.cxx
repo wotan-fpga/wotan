@@ -603,25 +603,27 @@ float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *
 				int sink_node_index = routing_structs->rr_node_index[SOURCE][tile_coord.x][tile_coord.y][iclass];
 				int virtual_source_ind = routing_structs->rr_node[sink_node_index].get_virtual_source_node_ind();
 
-				vector<int> sink_indices;
-				vector<int> ss_length;
-				vector<int> source_conns_at_length;
-				get_corresponding_sink_ids(user_opts, analysis_settings, arch_structs, routing_structs, virtual_source_ind, tile_coord, sink_indices,
-								ss_length, source_conns_at_length);
+				if (virtual_source_ind != UNDEFINED){
+					vector<int> sink_indices;
+					vector<int> ss_length;
+					vector<int> source_conns_at_length;
+					get_corresponding_sink_ids(user_opts, analysis_settings, arch_structs, routing_structs, virtual_source_ind, tile_coord, sink_indices,
+									ss_length, source_conns_at_length);
 
-				for (int isink = 0; isink < (int)sink_indices.size(); isink++){
-					Source_Sink_Pair ss_pair;
-					ss_pair.source_ind = virtual_source_ind;
-					ss_pair.sink_ind = sink_indices[isink];
-					ss_pair.ss_length = ss_length[isink];
-					ss_pair.source_conns_at_length = source_conns_at_length[isink];
+					for (int isink = 0; isink < (int)sink_indices.size(); isink++){
+						Source_Sink_Pair ss_pair;
+						ss_pair.source_ind = virtual_source_ind;
+						ss_pair.sink_ind = sink_indices[isink];
+						ss_pair.ss_length = ss_length[isink];
+						ss_pair.source_conns_at_length = source_conns_at_length[isink];
 
-					thread_conn_info[ithread_sink].source_sink_pairs.push_back(ss_pair);
-				}
+						thread_conn_info[ithread_sink].source_sink_pairs.push_back(ss_pair);
+					}
 
-				ithread_sink++;
-				if (ithread_sink == num_threads){
-					ithread_sink = 0;
+					ithread_sink++;
+					if (ithread_sink == num_threads){
+						ithread_sink = 0;
+					}
 				}
 			} else {
 				WTHROW(EX_PATH_ENUM, "Unexpected pin type: " << pin_class->get_pin_type());
