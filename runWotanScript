@@ -46,7 +46,8 @@ set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/L1/k4_N8_topolog
 ## RUN FULL VPR FLOW ##
 
 #$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -nodisp -pack -place
-$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route -route_chan_width 60
+#$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route -route_chan_width 60
+$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route_chan_width 60
 
 #######################################################
 ## WOTAN ##
