@@ -31,6 +31,7 @@ static void wotan_print_title();
 /* creates a virtual source node for every sink node and links it to the nodes which connect into its ipins.
    these new sources allow for (in effect) enumerating paths from ipins while accounting for input pin equivalence */
 void create_virtual_sources(Routing_Structs *routing_structs);
+void create_virtual_sources_2(Routing_Structs *routing_structs); // NATHAN
  
 
 
@@ -64,7 +65,8 @@ void wotan_init(int argc, char **argv, User_Options *user_opts, Arch_Structs *ar
 	initialize_reverse_node_edges_and_switches(routing_structs, UNDEFINED); 
 
 	/* create virtual sources for all sinks -- this allows (in effect) enumerating of paths from ipins */
-	create_virtual_sources(routing_structs);
+	//create_virtual_sources(routing_structs);
+	create_virtual_sources_2(routing_structs);
 
 	/* all nodes */
 	initialize_reverse_node_edges_and_switches(routing_structs, UNDEFINED); 
@@ -504,6 +506,65 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 
 		/* mark the sink node with the index of this new virtual source */
 		rr_node[inode].set_virtual_source_node_ind( new_node_index );		//using rr_node instead of sink_node reference because rr_node vector changed
+	}
+}
+
+// This function differs from the other one because it only constructs virtual sources for CHANX/Y nodes
+// NATHAN
+void create_virtual_sources_2(Routing_Structs *routing_structs)
+{
+	int num_nodes = routing_structs->get_num_rr_nodes();
+	t_rr_node &rr_node = routing_structs->rr_node;
+
+	// Find and act on sink nodes
+	for (int inode = 0; inode < num_nodes; inode++)
+	{
+		// Skip nodes that aren't CHANX/CHANY
+		if (rr_node[inode].get_rr_type() != CHANX || rr_node[inode].get_rr_type() != CHANY) {
+			continue;
+		}
+
+		RR_Node &my_node = rr_node[inode];	// Note if rr_node struct is changed this might get invalidated...
+
+		// Some properties of the node to be copied
+		int ptc = my_node.get_ptc_num();
+		short x1, y1, x2, y2;
+		x1 = my_node.get_xlow();
+		y1 = my_node.get_ylow();
+		x2 = my_node.get_xhigh();
+		y2 = my_node.get_yhigh();
+
+		if (num_in_edges_chan <= 0) {
+			WTHROW(EX_INIT, "Found CHANX/Y node (" << inode << ") with no incoming edges");
+		}
+
+		rr_node.push_back(RR_Node());
+		RR_Node &new_node = rr_node.back();
+		new_node.set_is_virtual_source(true);
+		new_node.set_rr_type(SOURCE);
+		new_node.set_coordinates(x1, y1, x2, y2);
+		new_node.set_ptc_num(ptc);
+
+		int num_out_edges = (int) my_node.get_num_out_edges();
+		int num_in_edges = (int) my_node.get_num_in_edges();
+
+		new_node.alloc_out_edges_and_switches( num_out_edges );
+		new_node.alloc_in_edges_and_switches( num_in_edges );
+		for (int iedge = 0; iedge < num_out_edges; iedge++)
+		{
+			new_node.out_edges[iedge] = my_node[iedge];
+		}
+		for (int iedge = 0; iedge < num_in_edges; iedge++)
+		{
+			new_node.in_edges[iedge] = my_node[iedge];
+		}
+
+		// Insert new node into the rr_node structure
+		int new_node_index = (int) rr_node.size()-1;
+
+		// Mark the sink node with the index of this new virtual source
+		// Using rr_node instead of my_node reference because rr_node vector changed
+		rr_node[inode].set_virtual_source_node_ind( new_node_index );
 	}
 }
 

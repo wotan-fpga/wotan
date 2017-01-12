@@ -14,12 +14,12 @@
    1: edge(5) switch(0)
   .end edges
  node_3: rr_type(CHANX) xlow(0) xhigh(1) ylow(0) yhigh(0) ptc_num(1) fan_in(1) direction(0) R(0) C(0)
-  .edges(1)
+  .edges(2)
    0: edge(4) switch(0)
    1: edge(5) switch(0)
   .end edges
  node_4: rr_type(IPIN) xlow(1) xhigh(1) ylow(0) yhigh(0) ptc_num(0) fan_in(2) direction(-1) R(0) C(0)
-  .edges(1)
+  .edges(2)
    0: edge(6) switch(0)
   .end edges
  node_5: rr_type(IPIN) xlow(1) xhigh(1) ylow(0) yhigh(0) ptc_num(1) fan_in(2) direction(-1) R(0) C(0)
