@@ -513,6 +513,9 @@ void create_virtual_sources(Routing_Structs *routing_structs){
 // NATHAN
 void create_virtual_sources_2(Routing_Structs *routing_structs)
 {
+	// DEBUG FIX
+	cout << "Creating virtual sources" << endl;
+
 	int num_nodes = routing_structs->get_num_rr_nodes();
 	t_rr_node &rr_node = routing_structs->rr_node;
 
@@ -520,19 +523,32 @@ void create_virtual_sources_2(Routing_Structs *routing_structs)
 	for (int inode = 0; inode < num_nodes; inode++)
 	{
 		// Skip nodes that aren't CHANX/CHANY
-		if (rr_node[inode].get_rr_type() != CHANX || rr_node[inode].get_rr_type() != CHANY) {
+		if (rr_node[inode].get_rr_type() != CHANX && rr_node[inode].get_rr_type() != CHANY) {
 			continue;
 		}
+
+		// DEBUG FIX
+		cout << "Adding virtual source for node " << inode << endl;
 
 		RR_Node &my_node = rr_node[inode];	// Note if rr_node struct is changed this might get invalidated...
 
 		// Some properties of the node to be copied
 		int ptc = my_node.get_ptc_num();
+		int num_in_edges_chan = my_node.get_num_in_edges();
+		int num_out_edges = (int) my_node.get_num_out_edges();
 		short x1, y1, x2, y2;
 		x1 = my_node.get_xlow();
 		y1 = my_node.get_ylow();
 		x2 = my_node.get_xhigh();
 		y2 = my_node.get_yhigh();
+
+		// Get the out edges before rr_node gets modified by the new_node
+		vector<int> my_node_out_edges;
+		vector<int> my_node_out_switches;
+		for (int i = 0; i < num_out_edges; i++) {
+			my_node_out_edges.push_back(my_node.out_edges[i]);
+			my_node_out_switches.push_back(my_node.out_switches[i]);
+		}
 
 		if (num_in_edges_chan <= 0) {
 			WTHROW(EX_INIT, "Found CHANX/Y node (" << inode << ") with no incoming edges");
@@ -545,18 +561,11 @@ void create_virtual_sources_2(Routing_Structs *routing_structs)
 		new_node.set_coordinates(x1, y1, x2, y2);
 		new_node.set_ptc_num(ptc);
 
-		int num_out_edges = (int) my_node.get_num_out_edges();
-		int num_in_edges = (int) my_node.get_num_in_edges();
-
 		new_node.alloc_out_edges_and_switches( num_out_edges );
-		new_node.alloc_in_edges_and_switches( num_in_edges );
 		for (int iedge = 0; iedge < num_out_edges; iedge++)
 		{
-			new_node.out_edges[iedge] = my_node[iedge];
-		}
-		for (int iedge = 0; iedge < num_in_edges; iedge++)
-		{
-			new_node.in_edges[iedge] = my_node[iedge];
+			new_node.out_edges[iedge] = my_node_out_edges[iedge];
+			new_node.out_switches[iedge] = my_node_out_switches[iedge];
 		}
 
 		// Insert new node into the rr_node structure
