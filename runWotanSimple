@@ -1,0 +1,9 @@
+#!/bin/csh
+
+# Script to run wotan for the simple graph
+
+#./wotan -rr_structs_file ./simple_graph/simple_structs.txt -rr_structs_mode simple -self_congestion none -demand_multiplier 0.2  -nodisp
+
+./wotan -rr_structs_file ./simple_graph/simple_structs_2.txt -rr_structs_mode simple -demand_multiplier 0.2  -nodisp
+#./wotan -rr_structs_file ./simple_graph/simple_structs_2.txt -rr_structs_mode simple -demand_multiplier 2  -nodisp
+#./wotan -rr_structs_file ./simple_graph/simple_structs.txt -rr_structs_mode simple -demand_multiplier 0.2  -nodisp
