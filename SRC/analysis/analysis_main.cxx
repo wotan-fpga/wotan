@@ -191,6 +191,8 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 /* performs routability analysis on a simple one-source/one-sink graph */
 static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
 			Routing_Structs *routing_structs);
+static void analyze_simple_graph_2(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
+			Routing_Structs *routing_structs); // NATHAN
 
 /* enumerates paths from test tiles */
 float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
@@ -318,7 +320,8 @@ void run_analysis(User_Options *user_opts, Analysis_Settings *analysis_settings,
 			analyze_fpga_architecture(user_opts, analysis_settings, arch_structs, routing_structs);
 			break;
 		case RR_STRUCTS_SIMPLE:
-			analyze_simple_graph(user_opts, analysis_settings, arch_structs, routing_structs);
+			//analyze_simple_graph(user_opts, analysis_settings, arch_structs, routing_structs);
+			analyze_simple_graph_2(user_opts, analysis_settings, arch_structs, routing_structs);
 			break;
 		default:
 			WTHROW(EX_PATH_ENUM, "Encountered unrecognized rr_structs_mode: " << user_opts->rr_structs_mode); 
@@ -471,6 +474,118 @@ static void analyze_simple_graph(User_Options *user_opts, Analysis_Settings *ana
 	/* print connection probability */
 	cout << "Connection probability: " << connection_probability << endl;
 }
+
+// Performs routability analysis on a simple one-source/two-sink graph
+// NATHAN
+static void analyze_simple_graph_2(User_Options *user_opts, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs, 
+								Routing_Structs *routing_structs)
+{
+	cout << "Analyzing simple graph 2" << endl;
+	if (user_opts->target_reliability != UNDEFINED) {
+		WTHROW(EX_OTHER, "Not implemented.");
+	}
+
+	t_rr_node &rr_node = routing_structs->rr_node;
+	int num_rr_nodes = routing_structs->get_num_rr_nodes();
+	int source_node_ind = UNDEFINED;
+	int large_connection_length = 10;
+	int large_max_path_weight = 10;
+
+	// Figure out which node is the source and which node is the sink
+	vector<int> sinks;
+	vector<int> virtual_source_indices;
+	for (int inode = 0; inode < num_rr_nodes; inode++)
+	{
+		e_rr_type node_type = rr_node[inode].get_rr_type();
+		if (rr_node[inode].get_is_virtual_source()) {
+			continue;
+		}
+
+		if (rr_node[inode].get_virtual_source_node_ind() != UNDEFINED)
+		{
+			int virt_src_ind = rr_node[inode].get_virtual_source_node_ind();
+			virtual_source_indices.push_back(virt_src_ind);
+		}
+
+		if (node_type == SOURCE)
+		{
+			if (source_node_ind == UNDEFINED) {
+				source_node_ind = inode;
+			}
+			else {
+				WTHROW(EX_PATH_ENUM, "Expected to only find one source node.");
+			}
+		}
+		else if (node_type == SINK)
+		{
+			// Get the two sinks
+			if (sinks.size() < 2) {
+				sinks.push_back(inode);
+			}
+		}
+		else {
+			/* nothing */
+		}
+	}
+
+	// Allocate structures for getting source/sink distances
+	t_nodes_visited nodes_visited;
+	nodes_visited.reserve(num_rr_nodes);
+	t_ss_distances ss_distances;
+	ss_distances.assign(num_rr_nodes, SS_Distances());
+
+	// Allocate structures for topological traversal
+	t_node_topo_inf node_topo_inf;
+	node_topo_inf.assign(num_rr_nodes, Node_Topological_Info());
+	for (int inode = 0; inode < num_rr_nodes; inode++)
+	{
+		node_topo_inf[inode].buckets.alloc_source_sink_buckets(large_max_path_weight+1, large_max_path_weight+1);
+		node_topo_inf[inode].demand_discounts.assign(large_max_path_weight+1, 0.0);
+		rr_node[inode].alloc_child_demand_contributions(large_max_path_weight+1);
+	}
+
+	if (user_opts->self_congestion_mode == MODE_PATH_DEPENDENCE) {
+		WTHROW(EX_INIT, "Not implemented for simple graph.");
+	}
+	else if (user_opts->self_congestion_mode == MODE_RADIUS) {
+		WTHROW(EX_INIT, "Not implemented for simple graph.");
+	}
+
+	// Perform path enumeration for sources
+	for (unsigned int i = 0; i < sinks.size(); i++)
+	{
+		int sink_node_ind = sinks[i];
+		cout << "Enumerating for " << sink_node_ind << endl;
+		enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, routing_structs,
+									ss_distances, node_topo_inf, large_connection_length, nodes_visited, user_opts,
+									(float)UNDEFINED);
+		clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, large_max_path_weight);
+	}
+
+	// Print how many paths run through each node
+	cout << "Node demands: " << endl;
+	for (int inode = 0; inode < num_rr_nodes; inode++)
+	{
+		cout << inode << ": demand " << rr_node[inode].get_demand(user_opts) << endl;
+	}
+
+	// Estimate probability of routing from source to sink
+	cout << "Connection probability: " << endl;
+	float connection_probability;
+	for (unsigned int i = 0; i < sinks.size(); i++)
+	{
+		// Clean structures in preparation for probability estimation
+		clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, large_max_path_weight);
+		int sink_node_ind = sinks[i];
+		cout << "Analyzing probability for " << sink_node_ind << endl;
+		connection_probability = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings,
+																arch_structs, routing_structs, ss_distances, 
+																node_topo_inf, large_connection_length, nodes_visited, user_opts);
+		// Print connection probability
+		cout << "\t(" << source_node_ind << ',' << sink_node_ind << "): " << connection_probability << endl;
+	}
+}
+
 
 /* enumerates paths from test tiles. typically path eneumeration would involve enumerating paths from		//TODO: outdated comment
    sources to sinks, but there are a few caveats that can't be easily intuited. specifically:

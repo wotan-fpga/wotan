@@ -19,7 +19,7 @@
    1: edge(5) switch(0)
   .end edges
  node_4: rr_type(IPIN) xlow(1) xhigh(1) ylow(0) yhigh(0) ptc_num(0) fan_in(2) direction(-1) R(0) C(0)
-  .edges(2)
+  .edges(1)
    0: edge(6) switch(0)
   .end edges
  node_5: rr_type(IPIN) xlow(1) xhigh(1) ylow(0) yhigh(0) ptc_num(1) fan_in(2) direction(-1) R(0) C(0)
