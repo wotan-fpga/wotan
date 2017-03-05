@@ -22,6 +22,9 @@
 #include "analysis_cutline_simple.h"
 #include "analysis_reliability_poly.h"
 
+// NATHAN
+#include "analysis_virtual_source.h"
+
 
 using namespace std;
 
@@ -242,7 +245,7 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 /* Estimates the likelyhood (based on node demands) that the specified source/sink connection can be routed */
 float estimate_connection_probability(int source_node_ind, int sink_node_ind, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs,
 			Routing_Structs *routing_structs, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, int conn_length,
-			t_nodes_visited &nodes_visited, User_Options *user_opts);
+			t_nodes_visited &nodes_visited, User_Options *user_opts, bool currently_routing_from_virtual_source=false);
 
 /* fills the t_ss_distances structures according to source & sink distances to intermediate nodes. 
    also returns an adjusted maximum path weight (to be further passed on to path enumeration / probability analysis functions)
@@ -491,6 +494,20 @@ static void analyze_simple_graph_2(User_Options *user_opts, Analysis_Settings *a
 	int large_connection_length = 10;
 	int large_max_path_weight = 10;
 
+	// Just populate the SINK index in the routing_structs->rr_node_index structure since it's all I need
+	// Hard code x-y size to (2,2) i.e. 2x2 FPGA size. Hard code 6 RR_TYPES so we can index using the e_rr_types
+	routing_structs->alloc_and_create_rr_node_index(6, 2, 2);
+	for (unsigned int i = 0; i < rr_node.size(); i++)
+	{
+		RR_Node *n = &rr_node[i];
+		if (n->get_rr_type() == SINK)
+		{
+			int x = n->get_xlow();
+			int y = n->get_ylow();
+			routing_structs->rr_node_index[SINK][x][y].push_back(i);
+		}
+	}
+
 	// Figure out which node is the source and which node is the sink
 	vector<int> sinks;
 	vector<int> virtual_source_indices;
@@ -557,8 +574,7 @@ static void analyze_simple_graph_2(User_Options *user_opts, Analysis_Settings *a
 		int sink_node_ind = sinks[i];
 		cout << "Enumerating for " << sink_node_ind << endl;
 		enumerate_connection_paths(source_node_ind, sink_node_ind, analysis_settings, arch_structs, routing_structs,
-									ss_distances, node_topo_inf, large_connection_length, nodes_visited, user_opts,
-									(float)UNDEFINED);
+								   ss_distances, node_topo_inf, large_connection_length, nodes_visited, user_opts, 1);
 		clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, large_max_path_weight);
 	}
 
@@ -787,7 +803,6 @@ float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *
 	pthread_barrier_destroy(&f_analysis_results.thread_barrier);
 
 
-	
 	/* calculate metrics */
 
 	double total_demand = 0;
@@ -1481,35 +1496,56 @@ void enumerate_connection_paths(int source_node_ind, int sink_node_ind, Analysis
 /* Estimates the likelyhood (based on node demands) that the specified source/sink connection can be routed */
 float estimate_connection_probability(int source_node_ind, int sink_node_ind, Analysis_Settings *analysis_settings, Arch_Structs *arch_structs,
 			Routing_Structs *routing_structs, t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, int conn_length,
-			t_nodes_visited &nodes_visited, User_Options *user_opts){
-	
-	//float probability_sink_reachable = UNDEFINED;	//some sources/sinks just have no chance of connecting within specified max_path_weight. in that case want to return 0
+			t_nodes_visited &nodes_visited, User_Options *user_opts, bool currently_routing_from_virtual_source) {
+
+	// Some sources/sinks just have no chance of connecting within specified max_path_weight, in that case want to return 0
+	//float probability_sink_reachable = UNDEFINED;	
 	float probability_sink_reachable = 0;
 
 	t_rr_node &rr_node = routing_structs->rr_node;
 	/* get maximum allowable path weight of this connection */
+	// min_dist is minimum source sink distance
+	// max_path_weight is min_dist * flexibility_factor
 	int max_path_weight = analysis_settings->get_max_path_weight(conn_length);
 	int min_dist = UNDEFINED;
 
 	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
-					nodes_visited, &max_path_weight, &min_dist)){
-		//could not reach source or sink
+					nodes_visited, &max_path_weight, &min_dist)) {
+		// Could not reach source or sink
+		cout << "COULD NOT REACH SOURCE OR SINK" << endl; // NATHAN
 		return 0.0;
 	}
 
-	/* Get a pointer to the fill type block descriptor -- the one that describes a regular logic block.
-	   If a fill type descriptor has never been set (such as when the graph read-in by Wotan is 'simple' and
-	   doesn't represent an FPGA), the fill type pointer is set to NULL */
+	// Get a pointer to the fill type block descriptor -- the one that describes a regular logic block.
+	// If a fill type descriptor has never been set (such as when the graph read-in by Wotan is 'simple' and
+	// doesn't represent an FPGA), the fill type pointer is set to NULL
 	Physical_Type_Descriptor *fill_type = NULL;
 	int fill_type_index = arch_structs->get_fill_type_index();
-	if (fill_type_index != UNDEFINED){
+	if (fill_type_index != UNDEFINED) {
 		fill_type = &arch_structs->block_type[ fill_type_index ];
 	} else {
-		//if we are analyzing a simple graph (i.e. just a set of nodes, with no semblance of FPGA architecture) then
+		// If we are analyzing a simple graph (i.e. just a set of nodes, with no semblance of FPGA architecture) then
 		// we want the fill_type variable to be NULL for functions that compute routing probability	
 	}
 
-	if (max_path_weight > 0 && min_dist > 0){
+	if (currently_routing_from_virtual_source)
+	{
+		if (!routing_structs->rr_node[source_node_ind].get_is_virtual_source()) {
+			WTHROW(EX_PATH_ENUM, "Getting probability from non virtual source!");
+		}
+
+		int orig_ind = routing_structs->rr_node[source_node_ind].get_regular_source_node_ind();
+		float wt = routing_structs->rr_node[orig_ind].get_weight();
+
+		// FIX: IS THIS A GOOD IDEA???? NATHAN
+		// Since virtual source has no weight initially, set it to the original node's current weight
+		max_path_weight += wt;
+		min_dist += wt;
+		//print_ss_dist(ss_distances);
+	}
+
+	if (max_path_weight > 0 && min_dist > 0)
+	{
 
 		/* The probability analysis can be added on top of path enumeration, or be run by itself with 
 		   each node having been assigned a probability by the user during program initialization.
@@ -1517,7 +1553,8 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 		   connection being routable. If any scaling to probabilities is desired, it should be done outside this
 		   function */
 
-		if ( PROBABILITY_MODE == CUTLINE ){
+		if ( PROBABILITY_MODE == CUTLINE )
+		{
 			node_topo_inf[source_node_ind].set_level( 0 );
 
 			Cutline_Structs cutline_structs;
@@ -1530,7 +1567,9 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 			probability_sink_reachable = cutline_structs.prob_routable;
 
-		} else if ( PROBABILITY_MODE == CUTLINE_SIMPLE ){
+		}
+		else if ( PROBABILITY_MODE == CUTLINE_SIMPLE )
+		{
 			set_node_hops(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL);
 			set_node_hops(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL);
 
@@ -1549,7 +1588,9 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 			probability_sink_reachable = cutline_simple_structs.prob_routable;
 
-		} else if ( PROBABILITY_MODE == CUTLINE_RECURSIVE ){
+		}
+		else if ( PROBABILITY_MODE == CUTLINE_RECURSIVE )
+		{
 			set_node_hops(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight, FORWARD_TRAVERSAL);
 			set_node_hops(sink_node_ind, source_node_ind, rr_node, ss_distances, max_path_weight, BACKWARD_TRAVERSAL);
 
@@ -1571,22 +1612,70 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 			probability_sink_reachable = cutline_rec_structs.prob_routable;
 
-		} else if ( PROBABILITY_MODE == PROPAGATE ){
+		}
+		else if ( PROBABILITY_MODE == PROPAGATE )
+		{
 			node_topo_inf[source_node_ind].buckets.source_buckets[0] = 1;
 
 			Propagate_Structs propagate_structs;
 			propagate_structs.fill_type = fill_type;
+			cout << "Doing topo traversal prob. prop. for " << source_node_ind << ',' << sink_node_ind << endl;
 			do_topological_traversal(source_node_ind, sink_node_ind, rr_node, ss_distances, node_topo_inf, FORWARD_TRAVERSAL,
 						max_path_weight, user_opts, (void*)&propagate_structs,
 						propagate_node_popped_func,
 						propagate_child_iterated_func,
 						propagate_traversal_done_func);
 			
-
 			probability_sink_reachable = propagate_structs.prob_routable;
 
-		} else if ( PROBABILITY_MODE == RELIABILITY_POLYNOMIAL ){
-			if (user_opts->use_routing_node_demand == UNDEFINED){
+			// This condition prevents infinite recursion
+			float average_prob = 0.0; // For keeping track of average probability that another sink can be routed to
+			if (!currently_routing_from_virtual_source)
+			{
+				// NATHAN FIX
+				vector<int> virt_src;
+				cout << "Doing backwards propagation from " << sink_node_ind << " to obtain virtual sources." << endl;
+				propagate_backwards(sink_node_ind, rr_node, node_topo_inf, virt_src, probability_sink_reachable,
+									user_opts, ss_distances, max_path_weight, 0);
+				//cout << virt_src.size() << endl;
+
+				// Do enumeration from each virtual source
+				vector<float> probs; probs.resize(virt_src.size());
+				for (unsigned int i = 0; i < virt_src.size(); i++)
+				{
+					//cout << "Currently routing from virtual source: " << virt_src[i] << endl;
+					int new_node_ind = get_sink_node_ind(routing_structs, sink_node_ind);
+					cout << "Virtual source: " << virt_src[i] << " to " << new_node_ind << endl;
+					RR_Node *n = &routing_structs->rr_node[virt_src[i]];
+					for (int j = 0; j < n->get_num_out_edges(); j++) {
+						cout << "\tto " << n->out_edges[j] << endl;
+					}
+					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
+					enumerate_connection_paths(virt_src[i], new_node_ind, analysis_settings, arch_structs, routing_structs,
+											   ss_distances, node_topo_inf, conn_length, nodes_visited, user_opts,
+											   (float) UNDEFINED);
+					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
+					float prob = estimate_connection_probability(virt_src[i], new_node_ind, analysis_settings, arch_structs,
+																 routing_structs, ss_distances, node_topo_inf, conn_length,
+																 nodes_visited, user_opts, currently_routing_from_virtual_source=true);
+					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
+					cout << "Virtual source " << virt_src[i] << " to " << new_node_ind << " probability: " << prob << endl;
+					probs[i] = prob;
+				}
+				for (unsigned int i = 0; i < probs.size(); i++)
+				{
+					average_prob += probs[i];
+				}
+				average_prob = average_prob / probs.size();
+				cout << "Average probability from virtual sources to new sink: " << average_prob << endl;
+			}
+			// Now modify the original source-sink pair routable probability with the probability
+			// that another sink can be routed to
+			probability_sink_reachable = probability_sink_reachable * average_prob;
+		}
+		else if ( PROBABILITY_MODE == RELIABILITY_POLYNOMIAL )
+		{
+			if (user_opts->use_routing_node_demand == UNDEFINED) {
 				WTHROW(EX_PATH_ENUM, "Probability mode was set to RELIABILITY_POLYNOMIAL. But user_opts->use_routing_node_demand was not set!");
 			}
 

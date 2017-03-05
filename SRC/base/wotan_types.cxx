@@ -384,6 +384,9 @@ RR_Node::RR_Node(){
 
 	this->virtual_source_node_ind = UNDEFINED;
 
+	// So that a virtual source node can refer back to its original node
+	this->regular_source_node_ind = UNDEFINED; 
+
 	pthread_mutex_init(&this->my_mutex, NULL);
 
 	this->highlight = false;
@@ -596,6 +599,12 @@ void RR_Node::set_virtual_source_node_ind(int node_ind){
 	this->virtual_source_node_ind = node_ind;
 }
 
+/* Sets the index of the original source node index for the current node.
+   (shuld only be used if the current node is a virtual source) */
+void RR_Node::set_regular_source_node_ind(int node_ind) {
+	this->regular_source_node_ind = node_ind;
+}
+
 void RR_Node::set_is_virtual_source(bool is_virt){
 	this->is_virtual_source = is_virt;
 }
@@ -644,6 +653,12 @@ float RR_Node::get_weight() const{
 /* returns index of virtual source node corresponding to this node */
 int RR_Node::get_virtual_source_node_ind() const{
 	return this->virtual_source_node_ind;
+}
+
+/* returns index of original source node corresponding to this node
+   (should only be used if current node is a virtual source) */
+int RR_Node::get_regular_source_node_ind() const {
+	return this->regular_source_node_ind;
 }
 
 /* increments path count history at this node due to the specified target node.

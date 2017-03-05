@@ -519,7 +519,7 @@ void create_virtual_sources_2(Routing_Structs *routing_structs)
 	int num_nodes = routing_structs->get_num_rr_nodes();
 	t_rr_node &rr_node = routing_structs->rr_node;
 
-	// Find and act on sink nodes
+	// Find and act on CHANX/CHANY nodes
 	for (int inode = 0; inode < num_nodes; inode++)
 	{
 		// Skip nodes that aren't CHANX/CHANY
@@ -560,6 +560,7 @@ void create_virtual_sources_2(Routing_Structs *routing_structs)
 		new_node.set_rr_type(SOURCE);
 		new_node.set_coordinates(x1, y1, x2, y2);
 		new_node.set_ptc_num(ptc);
+		new_node.set_regular_source_node_ind(inode);
 
 		new_node.alloc_out_edges_and_switches( num_out_edges );
 		for (int iedge = 0; iedge < num_out_edges; iedge++)

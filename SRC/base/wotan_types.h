@@ -283,7 +283,6 @@ private:
 	short num_in_edges;				/* number of edges linking into this node */
 	float weight;					/* weight of this node */
 	double demand;					/* fractional demand for this node. used for routability analysis */
-
 	
 
 	/* each node keeps track of the number of paths from/to all nearby sources/sinks that are within the 
@@ -308,6 +307,9 @@ private:
 	int virtual_source_node_ind;
 	/* is this node a virtual source? */
 	bool is_virtual_source;
+
+	// So that a virtual source node can refer back to its original node
+	int regular_source_node_ind;
 
 protected:
 	/* Increments + returns path count history, or simply returns path count history
@@ -351,6 +353,7 @@ public:
 	void clear_demand();
 	void increment_demand(double increment, float demand_multiplier);
 	void set_virtual_source_node_ind(int);
+	void set_regular_source_node_ind(int);
 	void set_weight(float demand_multiplier);
 	void set_is_virtual_source(bool is_virt);
 
@@ -359,6 +362,7 @@ public:
 	double get_demand(User_Options*) const;
 	float get_weight() const;
 	int get_virtual_source_node_ind() const;
+	int get_regular_source_node_ind() const;
 	bool get_is_virtual_source() const;
 
 	/* increments path count history at this node due to the specified target node.
