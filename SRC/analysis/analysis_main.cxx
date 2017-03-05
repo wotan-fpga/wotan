@@ -593,7 +593,7 @@ static void analyze_simple_graph_2(User_Options *user_opts, Analysis_Settings *a
 		// Clean structures in preparation for probability estimation
 		clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, large_max_path_weight);
 		int sink_node_ind = sinks[i];
-		cout << "Analyzing probability for " << sink_node_ind << endl;
+		cout << "========Analyzing probability for " << sink_node_ind << endl;
 		connection_probability = estimate_connection_probability(source_node_ind, sink_node_ind, analysis_settings,
 																arch_structs, routing_structs, ss_distances, 
 																node_topo_inf, large_connection_length, nodes_visited, user_opts);
@@ -1619,7 +1619,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 
 			Propagate_Structs propagate_structs;
 			propagate_structs.fill_type = fill_type;
-			cout << "Doing topo traversal prob. prop. for " << source_node_ind << ',' << sink_node_ind << endl;
+			//cout << "Doing topo traversal prob. prop. for " << source_node_ind << ',' << sink_node_ind << endl;
 			do_topological_traversal(source_node_ind, sink_node_ind, rr_node, ss_distances, node_topo_inf, FORWARD_TRAVERSAL,
 						max_path_weight, user_opts, (void*)&propagate_structs,
 						propagate_node_popped_func,
@@ -1637,19 +1637,23 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 				cout << "Doing backwards propagation from " << sink_node_ind << " to obtain virtual sources." << endl;
 				propagate_backwards(sink_node_ind, rr_node, node_topo_inf, virt_src, probability_sink_reachable,
 									user_opts, ss_distances, max_path_weight, 0);
-				//cout << virt_src.size() << endl;
+				//cout << "### Number of virtual sources: " << virt_src.size() << endl;
 
 				// Do enumeration from each virtual source
-				vector<float> probs; probs.resize(virt_src.size());
+				vector<float> probs;
+				probs.resize(virt_src.size());
 				for (unsigned int i = 0; i < virt_src.size(); i++)
 				{
 					//cout << "Currently routing from virtual source: " << virt_src[i] << endl;
 					int new_node_ind = get_sink_node_ind(routing_structs, sink_node_ind);
-					cout << "Virtual source: " << virt_src[i] << " to " << new_node_ind << endl;
+					//cout << "******Virtual source: " << virt_src[i] << " to " << new_node_ind << endl;
+
+					/*
 					RR_Node *n = &routing_structs->rr_node[virt_src[i]];
 					for (int j = 0; j < n->get_num_out_edges(); j++) {
 						cout << "\tto " << n->out_edges[j] << endl;
-					}
+					}*/
+
 					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
 					enumerate_connection_paths(virt_src[i], new_node_ind, analysis_settings, arch_structs, routing_structs,
 											   ss_distances, node_topo_inf, conn_length, nodes_visited, user_opts,
@@ -1662,16 +1666,24 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 					cout << "Virtual source " << virt_src[i] << " to " << new_node_ind << " probability: " << prob << endl;
 					probs[i] = prob;
 				}
-				for (unsigned int i = 0; i < probs.size(); i++)
-				{
+				for (unsigned int i = 0; i < probs.size(); i++) {
 					average_prob += probs[i];
 				}
 				average_prob = average_prob / probs.size();
-				cout << "Average probability from virtual sources to new sink: " << average_prob << endl;
+				// Now modify the original source-sink pair routable probability with the probability
+				// that another sink can be routed to
+				cout << "--Average probability from virtual sources to new sink: " << average_prob << endl;
+				cout << "--Original probability for source-sink pair: " << probability_sink_reachable << endl;
+				//cout << "Updated probability: " << probability_sink_reachable * average_prob << endl;
+
+				// If there were no virtual sources expanded, it means that the original source-sink pair probability
+				// was below the "expansion" threshold. Thus, we do not modify the original reachable probability.
+				if (virt_src.size() == 0) {
+					cout << "----Original probability below threshold for path expansion" << endl;
+					average_prob = 1;
+				}
+				probability_sink_reachable = probability_sink_reachable * average_prob;
 			}
-			// Now modify the original source-sink pair routable probability with the probability
-			// that another sink can be routed to
-			probability_sink_reachable = probability_sink_reachable * average_prob;
 		}
 		else if ( PROBABILITY_MODE == RELIABILITY_POLYNOMIAL )
 		{
