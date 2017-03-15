@@ -20,15 +20,15 @@ set rr_structs_file = '/nfs/ug/homes-4/k/kongnath/code/wotan/test_dump.txt'
 
 #######################################################
 ## GET ARCH ##
-set arch = 'k4_s1_subset_topology-single-wirelength_fcin0.3_fcout0.6'
-python $pythonDir/generate_arch.py -a $arch
+#set arch = 'k4_s1_subset_topology-single-wirelength_fcin0.3_fcout0.6'
+#python $pythonDir/generate_arch.py -a $arch
 
 
 #######################################################
 ## SET ARCHITECTURES ##
 
-set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/L1/k4_N8_topology-1.0sL1_22nm.xml'
-#set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/test/k4_N8_topology-1.0sL1_22nm.xml'
+#set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/L1/k4_N8_topology-1.0sL1_22nm.xml'
+set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/test/k4_N8_topology-1.0sL1_22nm.xml'
 
 #set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/test/k4_N8_topology-1.0sL8_22nm.xml'
 #set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/test/k4_N8_topology-1.0sL4_22nm.xml'
@@ -40,17 +40,18 @@ set arch = '/nfs/ug/homes-4/k/kongnath/code/wotan/arch/4LUT_DSP/L1/k4_N8_topolog
 ## RUN VPR TO GET RRG ##
 
 #$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -nodisp -pack -place -route_chan_width 8
-#$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -nodisp -dump_rr_structs_file $rr_structs_file -pack -place -route_chan_width 8
+$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -nodisp -dump_rr_structs_file $rr_structs_file -pack -place -route_chan_width 8
 
 #######################################################
 ## RUN FULL VPR FLOW ##
 
 #$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -nodisp -pack -place
 #$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route -route_chan_width 60
-$vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route_chan_width 60
+#vpr/vpr $arch $vtr/vtr_flow/benchmarks/$benchmark -pack -place -route_chan_width 60
 
 #######################################################
 ## WOTAN ##
 
-#./wotan -rr_structs_file $rr_structs_file -threads 10 -demand_multiplier 25 -max_connection_length 6 -keep_path_count_history n
+#./wotan -rr_structs_file $rr_structs_file -threads 10 -demand_multiplier 25 -max_connection_length 6 -rr_structs_mode VPR
+./wotan -rr_structs_file $rr_structs_file -threads 10 -demand_multiplier 200 -max_connection_length 6 -rr_structs_mode VPR
 

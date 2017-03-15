@@ -523,12 +523,12 @@ void create_virtual_sources_2(Routing_Structs *routing_structs)
 	for (int inode = 0; inode < num_nodes; inode++)
 	{
 		// Skip nodes that aren't CHANX/CHANY
-		if (rr_node[inode].get_rr_type() != CHANX && rr_node[inode].get_rr_type() != CHANY) {
+		if ((rr_node[inode].get_rr_type() != CHANX) && (rr_node[inode].get_rr_type() != CHANY)) {
 			continue;
 		}
 
 		// DEBUG FIX
-		cout << "Adding virtual source for node " << inode << endl;
+		//cout << "Adding virtual source for node " << inode << endl;
 
 		RR_Node &my_node = rr_node[inode];	// Note if rr_node struct is changed this might get invalidated...
 

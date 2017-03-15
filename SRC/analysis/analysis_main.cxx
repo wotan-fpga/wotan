@@ -802,7 +802,6 @@ float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *
 	pthread_mutex_destroy(&f_analysis_results.thread_mutex);
 	pthread_barrier_destroy(&f_analysis_results.thread_barrier);
 
-
 	/* calculate metrics */
 
 	double total_demand = 0;
@@ -1512,7 +1511,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 	if (!get_ss_distances_and_adjust_max_path_weight(source_node_ind, sink_node_ind, rr_node, ss_distances, max_path_weight,
 					nodes_visited, &max_path_weight, &min_dist)) {
 		// Could not reach source or sink
-		cout << "COULD NOT REACH SOURCE OR SINK" << endl; // NATHAN
+		//cout << "COULD NOT REACH SOURCE OR SINK" << endl; // NATHAN
 		return 0.0;
 	}
 
@@ -1634,10 +1633,14 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 			{
 				// NATHAN FIX
 				vector<int> virt_src;
-				cout << "Doing backwards propagation from " << sink_node_ind << " to obtain virtual sources." << endl;
+				if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
+					cout << "Doing backwards propagation from " << sink_node_ind << " to obtain virtual sources." << endl;
+				}
+				vector<bool> visited_nodes;
+				visited_nodes.resize(routing_structs->get_num_rr_nodes());
 				propagate_backwards(sink_node_ind, rr_node, node_topo_inf, virt_src, probability_sink_reachable,
-									user_opts, ss_distances, max_path_weight, 0);
-				//cout << "### Number of virtual sources: " << virt_src.size() << endl;
+									user_opts, ss_distances, max_path_weight, 0, visited_nodes);
+				cout << "### Number of virtual sources: " << virt_src.size() << endl;
 
 				// Do enumeration from each virtual source
 				vector<float> probs;
@@ -1663,7 +1666,10 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 																 routing_structs, ss_distances, node_topo_inf, conn_length,
 																 nodes_visited, user_opts, currently_routing_from_virtual_source=true);
 					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
-					cout << "Virtual source " << virt_src[i] << " to " << new_node_ind << " probability: " << prob << endl;
+
+					if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
+						cout << "Virtual source " << virt_src[i] << " to " << new_node_ind << " probability: " << prob << endl;
+					}
 					probs[i] = prob;
 				}
 				for (unsigned int i = 0; i < probs.size(); i++) {
@@ -1672,14 +1678,18 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 				average_prob = average_prob / probs.size();
 				// Now modify the original source-sink pair routable probability with the probability
 				// that another sink can be routed to
-				cout << "--Average probability from virtual sources to new sink: " << average_prob << endl;
-				cout << "--Original probability for source-sink pair: " << probability_sink_reachable << endl;
-				//cout << "Updated probability: " << probability_sink_reachable * average_prob << endl;
+				if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
+					cout << "--Average probability from virtual sources to new sink: " << average_prob << endl;
+					cout << "--Original probability for source-sink pair: " << probability_sink_reachable << endl;
+					cout << "Updated probability: " << probability_sink_reachable * average_prob << endl;
+				}
 
 				// If there were no virtual sources expanded, it means that the original source-sink pair probability
 				// was below the "expansion" threshold. Thus, we do not modify the original reachable probability.
 				if (virt_src.size() == 0) {
-					cout << "----Original probability below threshold for path expansion" << endl;
+					if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
+						cout << "----Original probability below threshold for path expansion" << endl;
+					}
 					average_prob = 1;
 				}
 				probability_sink_reachable = probability_sink_reachable * average_prob;

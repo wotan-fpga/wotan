@@ -50,31 +50,26 @@ int get_sink_node_ind(Routing_Structs *routing_structs, int current_sink_ind)
 	return new_sink_ind;
 }
 
-/*
-void enumerate_from_virtual_source(int virt_src, int to_node_ind, Analysis_Settings *analysis_settings
-								   Arch_Structs *arch_structs, Routing_Structs *routing_structs,
-								   t_ss_distances &ss_distances, t_node_topo_inf &node_topo_inf, int conn_length
-								   t_nodes_visited &nodes_visited, User_Options *user_opts)
-{
-	enumerate_connection_paths(virt_src, to_node_ind, analysis_settings, arch_structs,
-							   routing_structs, ss_distances, node_topo_inf, conn_length,
-							   nodes_visited, user_opts, (float) UNDEFINED);
-	
-}
-*/
-
 // Fill the virtual_sources vector with sources to do further path enumeration
 void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf &node_topo_inf, 
 						 vector<int> &virtual_sources, float prob_reachable, User_Options *user_opts,
-						 t_ss_distances &ss_distances, int max_path_weight, int level)
+						 t_ss_distances &ss_distances, int max_path_weight, int level, vector<bool> &visited)
 {
 	// For debugging
-	//for (int i = 0; i < level; i++)
-	//	cout << '\t';
-	//cout << from_node_ind << ": " << prob_reachable << endl;
+/*
+	for (int i = 0; i < level; i++)
+		cout << '\t';
+	cout << from_node_ind << ": " << prob_reachable << endl;
+*/
+
+	// Beware of graph cycles
+	if (visited[from_node_ind] == true) {
+		return;
+	}
+	visited[from_node_ind] = true;
 
 	// Hard code min. threshold for further expansion
-	if (prob_reachable < 0.75) {
+	if (prob_reachable < 0.7) {
 		return;
 	}
 
@@ -114,7 +109,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 		int num_source_buckets = node_topo_inf[prev_edge].buckets.get_num_source_buckets();
 		float prob_routable = get_prob_reachable(source_buckets, num_source_buckets);
 		propagate_backwards(prev_edge, rr_node, node_topo_inf, virtual_sources, prob_routable,
-							user_opts, ss_distances, max_path_weight, level+1);
+							user_opts, ss_distances, max_path_weight, level+1, visited);
 	}
 }
 
