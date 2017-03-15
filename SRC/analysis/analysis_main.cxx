@@ -1639,7 +1639,7 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 				vector<bool> visited_nodes;
 				visited_nodes.resize(routing_structs->get_num_rr_nodes());
 				propagate_backwards(sink_node_ind, rr_node, node_topo_inf, virt_src, probability_sink_reachable,
-									user_opts, ss_distances, max_path_weight, 0, visited_nodes);
+									user_opts, ss_distances, max_path_weight, 0, visited_nodes, true);
 				cout << "### Number of virtual sources: " << virt_src.size() << endl;
 
 				// Do enumeration from each virtual source

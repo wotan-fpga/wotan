@@ -53,7 +53,8 @@ int get_sink_node_ind(Routing_Structs *routing_structs, int current_sink_ind)
 // Fill the virtual_sources vector with sources to do further path enumeration
 void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf &node_topo_inf, 
 						 vector<int> &virtual_sources, float prob_reachable, User_Options *user_opts,
-						 t_ss_distances &ss_distances, int max_path_weight, int level, vector<bool> &visited)
+						 t_ss_distances &ss_distances, int max_path_weight, int level, vector<bool> &visited,
+						 bool from_sink)
 {
 	// For debugging
 /*
@@ -69,7 +70,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 	visited[from_node_ind] = true;
 
 	// Hard code min. threshold for further expansion
-	if (prob_reachable < 0.7) {
+	if ((prob_reachable < 0.75) && (from_sink)) {
 		return;
 	}
 
@@ -109,7 +110,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 		int num_source_buckets = node_topo_inf[prev_edge].buckets.get_num_source_buckets();
 		float prob_routable = get_prob_reachable(source_buckets, num_source_buckets);
 		propagate_backwards(prev_edge, rr_node, node_topo_inf, virtual_sources, prob_routable,
-							user_opts, ss_distances, max_path_weight, level+1, visited);
+							user_opts, ss_distances, max_path_weight, level+1, visited, false);
 	}
 }
 
@@ -120,9 +121,11 @@ float get_prob_reachable(double *source_buckets, int num_source_buckets)
 	{
 		float bucket_value = source_buckets[ibucket];
 		if (bucket_value != UNDEFINED) {
+			//cout << "@ " << running_total << " or " << bucket_value << endl;
 			running_total = or_two_probs(running_total, bucket_value);
 		}
 	}
+	//cout << "DONE: " << running_total << endl;
 	return running_total;
 }
 
