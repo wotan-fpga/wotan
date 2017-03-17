@@ -337,6 +337,7 @@ static void analyze_fpga_architecture(User_Options *user_opts, Analysis_Settings
 
 	if (user_opts->target_reliability == UNDEFINED){
 		analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, ENUMERATE);
+		cout << "======= PROBABILITY ANALYSIS" << endl;
 		analyze_test_tile_connections(user_opts, analysis_settings, arch_structs, routing_structs, PROBABILITY);
 	} else {
 		//XXX: binary search doesn't actually work right now. Seems to be bugged out right now. Probably some structures aren't being reset.
@@ -861,6 +862,7 @@ float analyze_test_tile_connections(User_Options *user_opts, Analysis_Settings *
 		float fanout_prob_metric = 0;
 		if (opin_prob != 0){
 			worst_probabilities_driver = analyze_lowest_probs_pqs( f_analysis_results.lowest_probs_pqs_drivers );
+			cout << "WORST PROB DRIVER: " << worst_probabilities_driver << endl;
 			driver_prob_metric = worst_probabilities_driver / (f_analysis_results.max_possible_total_prob_drivers * WORST_ROUTABILITY_PERCENTILE_DRIVERS);
 		}
 
@@ -1628,8 +1630,8 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 			probability_sink_reachable = propagate_structs.prob_routable;
 
 			// This condition prevents infinite recursion
-			float average_prob = 0.0; // For keeping track of average probability that another sink can be routed to
 			if (!currently_routing_from_virtual_source)
+			//if (false)
 			{
 				// NATHAN FIX
 				vector<int> virt_src;
@@ -1640,7 +1642,9 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 				visited_nodes.resize(routing_structs->get_num_rr_nodes());
 				propagate_backwards(sink_node_ind, rr_node, node_topo_inf, virt_src, probability_sink_reachable,
 									user_opts, ss_distances, max_path_weight, 0, visited_nodes, true);
-				cout << "### Number of virtual sources: " << virt_src.size() << endl;
+				if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
+					cout << "### Number of virtual sources: " << virt_src.size() << endl;
+				}
 
 				// Do enumeration from each virtual source
 				vector<float> probs;
@@ -1657,25 +1661,31 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 						cout << "\tto " << n->out_edges[j] << endl;
 					}*/
 
+					/*
 					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
 					enumerate_connection_paths(virt_src[i], new_node_ind, analysis_settings, arch_structs, routing_structs,
 											   ss_distances, node_topo_inf, conn_length, nodes_visited, user_opts,
 											   (float) UNDEFINED);
+					*/
 					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
 					float prob = estimate_connection_probability(virt_src[i], new_node_ind, analysis_settings, arch_structs,
 																 routing_structs, ss_distances, node_topo_inf, conn_length,
 																 nodes_visited, user_opts, currently_routing_from_virtual_source=true);
-					clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
 
 					if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
 						cout << "Virtual source " << virt_src[i] << " to " << new_node_ind << " probability: " << prob << endl;
 					}
 					probs[i] = prob;
 				}
+				clean_node_data_structs(nodes_visited, ss_distances, node_topo_inf, max_path_weight);
+
+				float average_prob = 0.0; // For keeping track of average probability that another sink can be routed to
 				for (unsigned int i = 0; i < probs.size(); i++) {
 					average_prob += probs[i];
 				}
-				average_prob = average_prob / probs.size();
+				if (probs.size() != 0) {
+					average_prob = average_prob / probs.size();
+				}
 				// Now modify the original source-sink pair routable probability with the probability
 				// that another sink can be routed to
 				if (user_opts->rr_structs_mode == RR_STRUCTS_SIMPLE) {
@@ -1692,7 +1702,8 @@ float estimate_connection_probability(int source_node_ind, int sink_node_ind, An
 					}
 					average_prob = 1;
 				}
-				probability_sink_reachable = probability_sink_reachable * average_prob;
+				//probability_sink_reachable = probability_sink_reachable * average_prob;
+				probability_sink_reachable = (0.5 * probability_sink_reachable) + (0.5 * average_prob);
 			}
 		}
 		else if ( PROBABILITY_MODE == RELIABILITY_POLYNOMIAL )

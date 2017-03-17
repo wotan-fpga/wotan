@@ -70,7 +70,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 	visited[from_node_ind] = true;
 
 	// Hard code min. threshold for further expansion
-	if ((prob_reachable < 0.75) && (from_sink)) {
+	if ((prob_reachable < 0.7) && (from_sink)) {
 		return;
 	}
 
@@ -83,7 +83,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 
 	// Don't want to expand a node on an illegal path
 	if (!ss_distances[from_node_ind].is_legal(rr_node[from_node_ind].get_weight(), max_path_weight)) {
-		cout << "Node not on legal path." << endl;
+		//cout << "Node not on legal path." << endl;
 		return;
 	}
 	// If we hit a node with no incoming edges, we're done.
@@ -110,7 +110,7 @@ void propagate_backwards(int from_node_ind, t_rr_node &rr_node, t_node_topo_inf 
 		int num_source_buckets = node_topo_inf[prev_edge].buckets.get_num_source_buckets();
 		float prob_routable = get_prob_reachable(source_buckets, num_source_buckets);
 		propagate_backwards(prev_edge, rr_node, node_topo_inf, virtual_sources, prob_routable,
-							user_opts, ss_distances, max_path_weight, level+1, visited, false);
+							user_opts, ss_distances, max_path_weight, level+1, visited, true);
 	}
 }
 

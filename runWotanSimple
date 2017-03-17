@@ -11,3 +11,4 @@
 
 # New graphs
 ./wotan -rr_structs_file ./simple_graph/simple_structs_subset.txt -rr_structs_mode simple -demand_multiplier 0.2  -nodisp
+#./wotan -rr_structs_file ./simple_graph/simple_structs_wilton.txt -rr_structs_mode simple -demand_multiplier 0.2  -nodisp
